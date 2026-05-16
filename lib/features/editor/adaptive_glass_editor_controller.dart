@@ -1,0 +1,312 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
+
+import '../../models/processing_settings.dart';
+import '../../services/adaptive_glass_processor.dart';
+import 'models/editor_export_payload.dart';
+import 'models/export_format_option.dart';
+
+class AdaptiveGlassEditorController extends ChangeNotifier {
+  AdaptiveGlassEditorController({AdaptiveGlassProcessor? processor})
+    : _processor = processor ?? AdaptiveGlassProcessor();
+
+  final AdaptiveGlassProcessor _processor;
+
+  ProcessingSettings _settings = const ProcessingSettings();
+  ExportFormatOption _exportFormat = ExportFormatOption.png;
+
+  Uint8List? _sourceBytes;
+  PreviewCompositeOutput? _previewComposite;
+  String? _sourceName;
+  String _status = '选择一张图片开始';
+  bool _processing = false;
+
+  Timer? _debounceTimer;
+  int _currentTaskId = 0;
+  int _sourceRevision = 0;
+  bool _previewInFlight = false;
+  bool _previewQueued = false;
+  ExifSnapshot? _sourceExif;
+  Future<ExifSnapshot>? _sourceExifFuture;
+  int _lastPreviewMaxDimension = 1600;
+
+  ProcessingSettings get settings => _settings;
+  ExportFormatOption get exportFormat => _exportFormat;
+  PreviewCompositeOutput? get previewComposite => _previewComposite;
+  ExifSnapshot get previewExif => _sourceExif ?? const ExifSnapshot();
+  String get status => _status;
+  bool get processing => _processing;
+  String get watermarkText => _settings.watermark.text;
+  bool get hasSource => _sourceBytes != null;
+
+  void setStatus(String status, {bool? processing}) {
+    _status = status;
+    if (processing != null) {
+      _processing = processing;
+    }
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+
+  void setExportFormat(ExportFormatOption value) {
+    if (_exportFormat == value) {
+      return;
+    }
+    _exportFormat = value;
+    notifyListeners();
+  }
+
+  Future<void> loadSource({
+    required Uint8List bytes,
+    required String name,
+    required int previewMaxDimension,
+  }) async {
+    _lastPreviewMaxDimension = previewMaxDimension;
+    final sourceRevision = ++_sourceRevision;
+    _sourceBytes = bytes;
+    _previewComposite = null;
+    _sourceName = name;
+    _sourceExif = null;
+    _sourceExifFuture = null;
+    _processing = true;
+    _status = '正在生成预览...';
+    notifyListeners();
+
+    _warmUpExif(bytes, sourceRevision);
+    _schedulePreviewRender(previewMaxDimension, immediate: true);
+  }
+
+  void updateWatermarkText(String text, {required int previewMaxDimension}) {
+    _lastPreviewMaxDimension = previewMaxDimension;
+    final next = _settings.watermark.copyWith(text: text);
+    if (next.text == _settings.watermark.text) {
+      return;
+    }
+    updateSettings(
+      _settings.copyWith(watermark: next),
+      rerender: true,
+      previewMaxDimension: previewMaxDimension,
+    );
+  }
+
+  void updateSettings(
+    ProcessingSettings settings, {
+    required bool rerender,
+    required int previewMaxDimension,
+  }) {
+    final previousSettings = _settings;
+    _lastPreviewMaxDimension = previewMaxDimension;
+    _settings = settings;
+    final shouldRenderRaster =
+        rerender &&
+        hasSource &&
+        ((_previewComposite == null && !_previewInFlight) ||
+            _needsRasterPreview(previousSettings, settings));
+
+    if (shouldRenderRaster) {
+      _processing = true;
+      _status = _previewComposite == null ? '正在生成预览...' : '正在刷新预览...';
+    } else if (rerender && hasSource) {
+      if (_previewInFlight) {
+        _status = _previewComposite == null ? '正在生成预览...' : '正在刷新预览...';
+      } else {
+        _processing = false;
+        _status = _previewComposite == null ? '正在生成预览...' : '预览已更新';
+      }
+    } else if (!hasSource) {
+      _status = '设置已更新';
+    }
+    notifyListeners();
+
+    if (shouldRenderRaster) {
+      _schedulePreviewRender(previewMaxDimension);
+    }
+  }
+
+  Future<bool> applyPresetString(
+    String raw, {
+    required int previewMaxDimension,
+  }) async {
+    _lastPreviewMaxDimension = previewMaxDimension;
+    try {
+      final settings = ProcessingSettings.fromPresetString(raw);
+      _settings = settings;
+      if (hasSource) {
+        _processing = true;
+        _status = _previewComposite == null ? '正在生成预览...' : '正在刷新预览...';
+      } else {
+        _status = '预设已加载';
+      }
+      notifyListeners();
+
+      if (hasSource) {
+        _schedulePreviewRender(previewMaxDimension);
+      }
+      return true;
+    } catch (error) {
+      _processing = false;
+      _status = '预设加载失败：$error';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Uint8List buildPresetBytes() {
+    return Uint8List.fromList(utf8.encode(_settings.toPresetString()));
+  }
+
+  Future<EditorExportPayload?> buildExportPayload() async {
+    final sourceBytes = _sourceBytes;
+    final sourceName = _sourceName;
+    if (sourceBytes == null || sourceName == null) {
+      return null;
+    }
+
+    final baseName = p.basenameWithoutExtension(sourceName);
+    final fileName = '${baseName}_光影边框${_exportFormat.extension}';
+
+    _processing = true;
+    _status = '正在导出完整分辨率图片...';
+    notifyListeners();
+
+    try {
+      final exif =
+          _sourceExif ??
+          await (_sourceExifFuture ??= _processor.readExif(sourceBytes));
+      _sourceExif = exif;
+      final output = await _processor.processExport(
+        sourceBytes,
+        _settings,
+        exif: exif,
+      );
+      final bytes = _processor.encodeForExport(
+        output.imageBytes,
+        fileName,
+        _settings.exportQuality,
+      );
+      _processing = false;
+      _status = '导出已准备好保存';
+      notifyListeners();
+      return EditorExportPayload(fileName: fileName, bytes: bytes);
+    } catch (error) {
+      _processing = false;
+      _status = '导出失败：$error';
+      notifyListeners();
+      return null;
+    }
+  }
+
+  void completeExport({required bool cancelled}) {
+    _processing = false;
+    _status = cancelled ? '已取消导出' : '导出完成';
+    notifyListeners();
+  }
+
+  void _warmUpExif(Uint8List sourceBytes, int sourceRevision) {
+    final future = _processor.readExif(sourceBytes);
+    _sourceExifFuture = future;
+    unawaited(
+      future.then((exif) {
+        if (sourceRevision != _sourceRevision) {
+          return;
+        }
+        _sourceExif = exif;
+        if (_settings.watermark.enabled) {
+          notifyListeners();
+        }
+      }),
+    );
+  }
+
+  void _schedulePreviewRender(
+    int previewMaxDimension, {
+    bool immediate = false,
+  }) {
+    if (!hasSource) {
+      return;
+    }
+
+    _debounceTimer?.cancel();
+    final taskId = ++_currentTaskId;
+    _processing = true;
+    _status = _previewComposite == null ? '正在生成预览...' : '正在刷新预览...';
+    notifyListeners();
+
+    _debounceTimer = Timer(
+      immediate ? Duration.zero : const Duration(milliseconds: 120),
+      () => _queuePreviewRender(taskId, previewMaxDimension),
+    );
+  }
+
+  void _queuePreviewRender(int taskId, int previewMaxDimension) {
+    if (_previewInFlight) {
+      _previewQueued = true;
+      return;
+    }
+    unawaited(
+      _processCurrent(taskId: taskId, previewMaxDimension: previewMaxDimension),
+    );
+  }
+
+  Future<void> _processCurrent({
+    int? taskId,
+    required int previewMaxDimension,
+  }) async {
+    final bytes = _sourceBytes;
+    if (bytes == null) {
+      return;
+    }
+
+    final currentTaskId = taskId ?? _currentTaskId;
+    final settings = _settings;
+    _previewInFlight = true;
+
+    try {
+      final output = await _processor.processPreviewComposite(
+        bytes,
+        settings,
+        maxDimension: previewMaxDimension,
+      );
+      if (currentTaskId != _currentTaskId || !identical(bytes, _sourceBytes)) {
+        return;
+      }
+      _previewComposite = output;
+      _processing = false;
+      _status = '预览已更新';
+      notifyListeners();
+    } catch (error) {
+      _processing = false;
+      _status = '预览生成失败：$error';
+      notifyListeners();
+    } finally {
+      _previewInFlight = false;
+      final shouldQueueNext =
+          _sourceBytes != null &&
+          (_previewQueued || currentTaskId != _currentTaskId);
+      if (shouldQueueNext) {
+        _previewQueued = false;
+        _debounceTimer?.cancel();
+        _queuePreviewRender(_currentTaskId, _lastPreviewMaxDimension);
+      }
+    }
+  }
+
+  bool _needsRasterPreview(
+    ProcessingSettings previous,
+    ProcessingSettings next,
+  ) {
+    return previous.targetRatio != next.targetRatio ||
+        previous.blurMode != next.blurMode ||
+        previous.blurRadius != next.blurRadius ||
+        previous.blurBrightness != next.blurBrightness ||
+        previous.contentScale != next.contentScale;
+  }
+}

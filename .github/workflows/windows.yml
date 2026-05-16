@@ -1,0 +1,31 @@
+name: Build for Windows x64
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Release Windows x64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version-file: pubspec.yaml
+          cache: true
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      - name: Upload windows release
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-x64-release
+          path: build/windows/x64/runner/Release/
