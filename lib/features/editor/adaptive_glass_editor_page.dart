@@ -237,6 +237,8 @@ class _AdaptiveGlassEditorPageState extends State<AdaptiveGlassEditorPage> {
                     settings: _controller.settings,
                     exif: _controller.previewExif,
                     onTap: _pickImage,
+                    sourceBytes: _controller.sourceBytes,
+                    sourceBytesThumb: _controller.sourceBytesThumb,
                   );
                   final panel = EditorSettingsPanel(
                     settings: _controller.settings,

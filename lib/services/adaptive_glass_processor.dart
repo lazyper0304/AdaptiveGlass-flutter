@@ -517,6 +517,7 @@ Future<Map<String, Object?>> _processRasterTask(
   final layoutInfo = layers.layoutInfo;
   var foreground = layers.foreground;
 
+  // 导出时应用边框、圆角和阴影（保持高质量）
   if (settings.borderStyle != BorderStyleOption.none) {
     foreground = _applyBorder(foreground, settings);
   }

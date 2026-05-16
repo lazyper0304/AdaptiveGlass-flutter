@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:go_transitions/go_transitions.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:signals_flutter/signals_flutter.dart';
@@ -11,6 +13,17 @@ part 'main.g.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await LiquidGlassWidgets.initialize();
+  
+  // 启用性能优化
+  debugProfileBuildsEnabled = false;
+  debugProfilePaintsEnabled = false;
+  debugProfileLayoutsEnabled = false;
+  debugRepaintRainbowEnabled = false;
+  debugPaintSizeEnabled = false;
+  
+  // 启用 GPU 优化的渲染
+  RendererBinding.instance.ensureSemantics();
+  
   runApp(LiquidGlassWidgets.wrap(child: const App()));
 }
 

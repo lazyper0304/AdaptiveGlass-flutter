@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
@@ -71,99 +73,90 @@ class FrostedPanel extends StatelessWidget {
   }
 }
 
-class ThemeModeOption extends StatelessWidget {
-  const ThemeModeOption({
+class ThemeModeSelector extends StatelessWidget {
+  const ThemeModeSelector({
     super.key,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.selected,
-    required this.onTap,
+    required this.themeMode,
+    required this.onChanged,
   });
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool selected;
-  final VoidCallback onTap;
+  final ThemeMode themeMode;
+  final ValueChanged<ThemeMode> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final accent = homeAccentColor(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const options = [
+      (mode: ThemeMode.system, icon: Icons.phone_android_rounded, label: '跟随系统'),
+      (mode: ThemeMode.light, icon: Icons.light_mode_rounded, label: '浅色模式'),
+      (mode: ThemeMode.dark, icon: Icons.dark_mode_rounded, label: '深色模式'),
+    ];
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: selected
-                    ? accent.withValues(alpha: 0.18)
-                    : colors.onSurface.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: selected
-                      ? accent.withValues(alpha: 0.62)
-                      : Colors.transparent,
-                ),
-              ),
-              child: Icon(icon, color: selected ? accent : colors.onSurface),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: colors.onSurface,
-                      fontWeight: FontWeight.w800,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          height: 48,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            color: isDark ? const Color(0x551C2026) : const Color(0xB8FFFFFF),
+          ),
+          child: Row(
+            children: options
+                .map((option) {
+                  final isSelected = themeMode == option.mode;
+                  return Expanded(
+                    child: InkWell(
+                      onTap: () => onChanged(option.mode),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(20),
+                          color: isSelected ? accent.withValues(alpha: 0.24) : Colors.transparent,
+                          border: isSelected ? Border.all(color: accent.withValues(alpha: 0.62)) : null,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                option.icon,
+                                size: 18,
+                                color: isSelected
+                                    ? accent
+                                    : colors.onSurface.withValues(alpha: 0.62),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                option.label,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: isSelected
+                                          ? accent
+                                          : colors.onSurface
+                                              .withValues(alpha: 0.72),
+                                      fontWeight: isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                    ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.onSurface.withValues(alpha: 0.58),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  width: 2,
-                  color: selected
-                      ? accent
-                      : colors.onSurface.withValues(alpha: 0.36),
-                ),
-              ),
-              child: Center(
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: selected ? 12 : 0,
-                  height: selected ? 12 : 0,
-                  decoration: BoxDecoration(
-                    color: accent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ),
-          ],
+                  );
+                })
+                .toList(),
+          ),
         ),
       ),
     );

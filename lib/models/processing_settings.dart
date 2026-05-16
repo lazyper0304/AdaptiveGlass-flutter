@@ -44,7 +44,7 @@ extension RatioPresetX on RatioPreset {
   static RatioPreset fromStorage(String? value) {
     return RatioPreset.values.firstWhere(
       (item) => item.storageKey == value,
-      orElse: () => RatioPreset.wide,
+      orElse: () => RatioPreset.original,
     );
   }
 }
@@ -288,7 +288,7 @@ class WatermarkSettings {
 
 class ProcessingSettings {
   const ProcessingSettings({
-    this.targetRatio = RatioPreset.wide,
+    this.targetRatio = RatioPreset.original,
     this.blurMode = BlurModeOption.standard,
     this.blurRadius = 35,
     this.blurBrightness = 0,

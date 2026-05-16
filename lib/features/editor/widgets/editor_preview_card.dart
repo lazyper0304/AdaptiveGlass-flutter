@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -13,12 +15,16 @@ class EditorPreviewCard extends StatelessWidget {
     required this.settings,
     required this.exif,
     required this.onTap,
+    this.sourceBytes,
+    this.sourceBytesThumb,
   });
 
   final PreviewCompositeOutput? preview;
   final ProcessingSettings settings;
   final ExifSnapshot exif;
   final VoidCallback onTap;
+  final Uint8List? sourceBytes;
+  final Uint8List? sourceBytesThumb;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +51,7 @@ class EditorPreviewCard extends StatelessWidget {
           child: ColoredBox(
             color: isDark ? const Color(0x5511161E) : const Color(0x66FFFFFF),
             child: Center(
-              child: preview == null
+              child: sourceBytes == null
                   ? Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -70,16 +76,12 @@ class EditorPreviewCard extends StatelessWidget {
                         ),
                       ],
                     )
-                  : RepaintBoundary(
-                      child: InteractiveViewer(
-                        minScale: 0.5,
-                        maxScale: 4,
-                        child: _LayeredPreview(
-                          preview: preview!,
-                          settings: settings,
-                          exif: exif,
-                        ),
-                      ),
+                  : _RealtimePreviewLayer(
+                      preview: preview,
+                      settings: settings,
+                      exif: exif,
+                      sourceBytes: sourceBytes!,
+                      thumbBytes: sourceBytesThumb,
                     ),
             ),
           ),
@@ -89,118 +91,489 @@ class EditorPreviewCard extends StatelessWidget {
   }
 }
 
-class _LayeredPreview extends StatelessWidget {
-  const _LayeredPreview({
+class _RealtimePreviewLayer extends StatefulWidget {
+  const _RealtimePreviewLayer({
     required this.preview,
     required this.settings,
     required this.exif,
+    required this.sourceBytes,
+    this.thumbBytes,
   });
 
-  final PreviewCompositeOutput preview;
+  final PreviewCompositeOutput? preview;
   final ProcessingSettings settings;
   final ExifSnapshot exif;
+  final Uint8List sourceBytes;
+  final Uint8List? thumbBytes;
+
+  @override
+  State<_RealtimePreviewLayer> createState() => _RealtimePreviewLayerState();
+}
+
+class _RealtimePreviewLayerState extends State<_RealtimePreviewLayer> {
+  ui.Image? _sourceImage;
+  bool _imagesReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSourceImage();
+  }
+
+  Future<void> _loadSourceImage() async {
+    try {
+      final codec = await ui.instantiateImageCodec(
+        widget.sourceBytes,
+        allowUpscaling: false,
+      );
+      final frame = await codec.getNextFrame();
+      if (mounted) {
+        setState(() {
+          _sourceImage = frame.image;
+          _imagesReady = true;
+        });
+      }
+    } catch (e) {
+      // 忽略错误
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final layout = preview.layoutInfo;
+    if (!_imagesReady || _sourceImage == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-    return Center(
+    return _buildFullRealtimePreview();
+  }
+
+  Widget _buildFullRealtimePreview() {
+    final targetRatio = _calculateTargetRatio();
+
+    return InteractiveViewer(
+      minScale: 0.5,
+      maxScale: 4,
       child: AspectRatio(
-        aspectRatio: layout.targetWidth / layout.targetHeight,
+        aspectRatio: targetRatio,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final scale = constraints.maxWidth / layout.targetWidth;
-            final borderWidth = settings.borderStyle == BorderStyleOption.none
+            final targetWidth = constraints.maxWidth;
+            final targetHeight = targetWidth / targetRatio;
+            
+            final layout = _calculateLayout(
+              targetWidth, targetHeight);
+
+            final scale = 1.0;
+            final borderWidth = widget.settings.borderStyle == BorderStyleOption.none
                 ? 0.0
-                : _scaledPreviewValue(
-                    settings.borderWidth,
-                    preview.renderScale,
-                    scale,
-                  );
+                : (widget.settings.borderWidth * scale).clamp(1.0, 20.0);
             final borderRadius =
-                settings.borderStyle == BorderStyleOption.rounded
-                ? _scaledPreviewValue(
-                    settings.cornerRadius,
-                    preview.renderScale,
-                    scale,
-                  )
-                : 0.0;
-            final shadowBlur = _scaledPreviewValue(
-              settings.shadowSize,
-              preview.renderScale,
-              scale,
-            );
+                widget.settings.borderStyle == BorderStyleOption.rounded
+                    ? (widget.settings.cornerRadius * scale).clamp(0.0, 50.0)
+                    : 0.0;
+            final shadowBlur =
+                (widget.settings.shadowSize * scale).clamp(0.0, 30.0);
             final radius = BorderRadius.circular(borderRadius);
 
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                Positioned.fill(
-                  child: Image.memory(
-                    preview.backgroundBytes,
-                    gaplessPlayback: true,
-                    fit: BoxFit.fill,
-                    filterQuality: FilterQuality.medium,
-                  ),
-                ),
-                Positioned(
-                  left: layout.contentX * scale,
-                  top: layout.contentY * scale,
-                  width: layout.contentWidth * scale,
-                  height: layout.contentHeight * scale,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: radius,
-                      boxShadow: shadowBlur <= 0
-                          ? null
-                          : [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.42),
-                                blurRadius: shadowBlur,
-                              ),
-                            ],
+            return RepaintBoundary(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _buildRealtimeBlurBackground(layout, scale),
+                  Positioned(
+                    left: layout.contentX * scale,
+                    top: layout.contentY * scale,
+                    width: layout.contentWidth * scale,
+                    height: layout.contentHeight * scale,
+                    child: _buildForegroundWithBorder(
+                      scale,
+                      radius,
+                      borderWidth,
+                      shadowBlur,
                     ),
-                    foregroundDecoration:
-                        settings.borderStyle == BorderStyleOption.none ||
-                            borderWidth <= 0
-                        ? null
-                        : BoxDecoration(
-                            borderRadius: radius,
-                            border: Border.all(
-                              color: _monoColor(settings.borderColor),
-                              width: borderWidth,
-                            ),
-                          ),
-                    child: ClipRRect(
-                      borderRadius: radius,
-                      child: Image.memory(
-                        preview.foregroundBytes,
-                        gaplessPlayback: true,
-                        fit: BoxFit.fill,
-                        filterQuality: FilterQuality.medium,
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(
+                        painter: _WatermarkPreviewPainter(
+                          settings: widget.settings.watermark,
+                          exif: widget.exif,
+                          layoutInfo: layout,
+                          renderScale: 1.0,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: CustomPaint(
-                      painter: _WatermarkPreviewPainter(
-                        settings: settings.watermark,
-                        exif: exif,
-                        layoutInfo: layout,
-                        renderScale: preview.renderScale,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             );
           },
         ),
       ),
     );
+  }
+
+  double _calculateTargetRatio() {
+    if (_sourceImage == null) return 16 / 9;
+
+    final preset = widget.settings.targetRatio;
+    
+    if (preset == RatioPreset.original) {
+      return _sourceImage!.width / _sourceImage!.height;
+    }
+
+    final dimensions = preset.dimensions;
+    if (dimensions != null) {
+      return dimensions.width / dimensions.height;
+    }
+    
+    return _sourceImage!.width / _sourceImage!.height;
+  }
+
+  LayoutInfo _calculateLayout(
+    double targetWidth,
+    double targetHeight,
+  ) {
+    if (_sourceImage == null) {
+      return LayoutInfo(
+        targetWidth: targetWidth.toInt(),
+        targetHeight: targetHeight.toInt(),
+        contentX: 0,
+        contentY: 0,
+        contentWidth: targetWidth.toInt(),
+        contentHeight: targetHeight.toInt(),
+      );
+    }
+
+    final imageW = _sourceImage!.width.toDouble();
+    final imageH = _sourceImage!.height.toDouble();
+    final imageRatio = imageW / imageH;
+    final targetRatio = targetWidth / targetHeight;
+
+    double contentW, contentH;
+    if (imageRatio > targetRatio) {
+      // 图片更宽
+      contentW = targetWidth;
+      contentH = targetWidth / imageRatio;
+    } else {
+      // 图片更高或相等
+      contentH = targetHeight;
+      contentW = targetHeight * imageRatio;
+    }
+
+    // 应用内容缩放
+    final contentScale = widget.settings.contentScale / 100.0;
+    contentW *= contentScale;
+    contentH *= contentScale;
+
+    // 居中
+    final contentX = (targetWidth - contentW) / 2;
+    final contentY = (targetHeight - contentH) / 2;
+
+    return LayoutInfo(
+      targetWidth: targetWidth.toInt(),
+      targetHeight: targetHeight.toInt(),
+      contentX: contentX.toInt(),
+      contentY: contentY.toInt(),
+      contentWidth: contentW.toInt(),
+      contentHeight: contentH.toInt(),
+    );
+  }
+
+  Widget _buildRealtimeBlurBackground(LayoutInfo layout, double scale) {
+    final blurRadius = widget.settings.blurRadius;
+    final blurMode = widget.settings.blurMode;
+    final blurBrightness = widget.settings.blurBrightness;
+
+    if (_sourceImage == null) {
+      return Container(color: Colors.grey[850]);
+    }
+
+    return _CanvasBlurBackground(
+      sourceImage: _sourceImage!,
+      blurRadius: blurRadius,
+      blurMode: blurMode,
+      blurBrightness: blurBrightness,
+    );
+  }
+
+  Widget _buildForegroundWithBorder(
+    double scale,
+    BorderRadius radius,
+    double borderWidth,
+    double shadowBlur,
+  ) {
+    Widget imageWidget = RawImage(
+      image: _sourceImage,
+      fit: BoxFit.fill,
+      filterQuality: FilterQuality.low,
+    );
+
+    if (widget.settings.borderStyle == BorderStyleOption.rounded) {
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          borderRadius: radius,
+          boxShadow: shadowBlur <= 0
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.42),
+                    blurRadius: shadowBlur,
+                  ),
+                ],
+        ),
+        foregroundDecoration: borderWidth <= 0
+            ? null
+            : BoxDecoration(
+                borderRadius: radius,
+                border: Border.all(
+                  color: _monoColor(widget.settings.borderColor),
+                  width: borderWidth,
+                ),
+              ),
+        child: ClipRRect(
+          borderRadius: radius,
+          child: imageWidget,
+        ),
+      );
+    } else if (widget.settings.borderStyle == BorderStyleOption.thin) {
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          boxShadow: shadowBlur <= 0
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.42),
+                    blurRadius: shadowBlur,
+                  ),
+                ],
+        ),
+        foregroundDecoration: borderWidth <= 0
+            ? null
+            : BoxDecoration(
+                border: Border.all(
+                  color: _monoColor(widget.settings.borderColor),
+                  width: borderWidth,
+                ),
+              ),
+        child: imageWidget,
+      );
+    } else {
+      return Container(
+        decoration: BoxDecoration(
+          color: Colors.transparent,
+          boxShadow: shadowBlur <= 0
+              ? null
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.42),
+                    blurRadius: shadowBlur,
+                  ),
+                ],
+        ),
+        child: imageWidget,
+      );
+    }
+  }
+}
+
+class _CanvasBlurBackground extends StatefulWidget {
+  const _CanvasBlurBackground({
+    required this.sourceImage,
+    required this.blurRadius,
+    required this.blurMode,
+    required this.blurBrightness,
+  });
+
+  final ui.Image sourceImage;
+  final int blurRadius;
+  final BlurModeOption blurMode;
+  final int blurBrightness;
+
+  @override
+  State<_CanvasBlurBackground> createState() => _CanvasBlurBackgroundState();
+}
+
+class _CanvasBlurBackgroundState extends State<_CanvasBlurBackground> {
+  ui.Image? _blurredImage;
+  bool _isBlurring = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _generateBlurredImage();
+  }
+
+  @override
+  void didUpdateWidget(_CanvasBlurBackground oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.blurRadius != widget.blurRadius ||
+        oldWidget.blurMode != widget.blurMode ||
+        oldWidget.blurBrightness != widget.blurBrightness) {
+      _generateBlurredImage();
+    }
+  }
+
+  Future<void> _generateBlurredImage() async {
+    if (_isBlurring) return;
+    _isBlurring = true;
+
+    try {
+      final blurred = await _applyBlurInCanvas(
+        widget.sourceImage,
+        widget.blurRadius,
+        widget.blurMode,
+        widget.blurBrightness,
+      );
+      if (mounted && blurred != null) {
+        setState(() {
+          _blurredImage = blurred;
+          _isBlurring = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isBlurring = false);
+      }
+    }
+  }
+
+  Future<ui.Image?> _applyBlurInCanvas(
+    ui.Image source,
+    int blurRadius,
+    BlurModeOption blurMode,
+    int blurBrightness,
+  ) async {
+    final targetWidth = 160;
+    final targetHeight = (source.height * (targetWidth / source.width)).round();
+    
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    
+    final src = Rect.fromLTWH(
+      0, 0,
+      source.width.toDouble(),
+      source.height.toDouble(),
+    );
+    final dst = Rect.fromLTWH(
+      0, 0,
+      targetWidth.toDouble(),
+      targetHeight.toDouble(),
+    );
+    
+    canvas.drawImageRect(source, src, dst, Paint()..filterQuality = FilterQuality.low);
+    
+    final picture = recorder.endRecording();
+    final thumbnail = await picture.toImage(targetWidth, targetHeight);
+    
+    final blurSigma = blurRadius * 0.05;
+    if (blurSigma > 0) {
+      final blurRecorder = ui.PictureRecorder();
+      final blurCanvas = Canvas(blurRecorder);
+      
+      blurCanvas.drawImageRect(
+        thumbnail,
+        Rect.fromLTWH(0, 0, targetWidth.toDouble(), targetHeight.toDouble()),
+        Rect.fromLTWH(0, 0, targetWidth.toDouble(), targetHeight.toDouble()),
+        Paint()
+          ..imageFilter = ui.ImageFilter.blur(
+            sigmaX: blurSigma.clamp(0, 10),
+            sigmaY: blurSigma.clamp(0, 10),
+          ),
+      );
+      
+      final blurPicture = blurRecorder.endRecording();
+      final blurredThumbnail = await blurPicture.toImage(targetWidth, targetHeight);
+      
+      if (blurBrightness != 0 || blurMode != BlurModeOption.standard) {
+        final finalRecorder = ui.PictureRecorder();
+        final finalCanvas = Canvas(finalRecorder);
+        
+        finalCanvas.drawImage(blurredThumbnail, Offset.zero, Paint());
+        
+        if (blurMode == BlurModeOption.dark) {
+          finalCanvas.drawRect(
+            Rect.fromLTWH(0, 0, targetWidth.toDouble(), targetHeight.toDouble()),
+            Paint()..color = Colors.black.withValues(alpha: 0.4),
+          );
+        } else if (blurMode == BlurModeOption.light) {
+          finalCanvas.drawRect(
+            Rect.fromLTWH(0, 0, targetWidth.toDouble(), targetHeight.toDouble()),
+            Paint()..color = Colors.white.withValues(alpha: 0.3),
+          );
+        }
+        
+        if (blurBrightness > 0) {
+          finalCanvas.drawRect(
+            Rect.fromLTWH(0, 0, targetWidth.toDouble(), targetHeight.toDouble()),
+            Paint()..color = Colors.white.withValues(alpha: blurBrightness * 0.01),
+          );
+        } else if (blurBrightness < 0) {
+          finalCanvas.drawRect(
+            Rect.fromLTWH(0, 0, targetWidth.toDouble(), targetHeight.toDouble()),
+            Paint()..color = Colors.black.withValues(alpha: (-blurBrightness) * 0.01),
+          );
+        }
+        
+        final finalPicture = finalRecorder.endRecording();
+        final result = await finalPicture.toImage(targetWidth, targetHeight);
+        blurredThumbnail.dispose();
+        return result;
+      }
+      
+      return blurredThumbnail;
+    }
+    
+    return thumbnail;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_blurredImage == null) {
+      return Container(color: Colors.grey[850]);
+    }
+
+    return CustomPaint(
+      painter: _BlurredImagePainter(
+        image: _blurredImage!,
+      ),
+      size: Size.infinite,
+    );
+  }
+
+  @override
+  void dispose() {
+    _blurredImage?.dispose();
+    super.dispose();
+  }
+}
+
+class _BlurredImagePainter extends CustomPainter {
+  const _BlurredImagePainter({required this.image});
+
+  final ui.Image image;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final src = Rect.fromLTWH(
+      0, 0,
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
+    final dst = Rect.fromLTWH(0, 0, size.width, size.height);
+    canvas.drawImageRect(
+      image,
+      src,
+      dst,
+      Paint()..filterQuality = FilterQuality.medium,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BlurredImagePainter oldDelegate) {
+    return oldDelegate.image != image;
   }
 }
 
@@ -233,8 +606,8 @@ class _WatermarkPreviewPainter extends CustomPainter {
   void _paintInPreviewPixels(Canvas canvas) {
     final templateText =
         settings.text.contains('{') && settings.text.contains('}')
-        ? _formatTemplate(settings.text, exif)
-        : settings.text;
+            ? _formatTemplate(settings.text, exif)
+            : settings.text;
     final exifModel = exif.model.isNotEmpty ? exif.model : exif.make;
     final infoParts = <String>[
       if (exif.iso.isNotEmpty) 'ISO${exif.iso}',

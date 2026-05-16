@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
+import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
 import '../../models/processing_settings.dart';
@@ -19,6 +21,7 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
   ExportFormatOption _exportFormat = ExportFormatOption.png;
 
   Uint8List? _sourceBytes;
+  Uint8List? _sourceBytesThumb;
   PreviewCompositeOutput? _previewComposite;
   String? _sourceName;
   String _status = '选择一张图片开始';
@@ -41,6 +44,8 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
   bool get processing => _processing;
   String get watermarkText => _settings.watermark.text;
   bool get hasSource => _sourceBytes != null;
+  Uint8List? get sourceBytes => _sourceBytes;
+  Uint8List? get sourceBytesThumb => _sourceBytesThumb;
 
   void setStatus(String status, {bool? processing}) {
     _status = status;
@@ -72,6 +77,7 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     _lastPreviewMaxDimension = previewMaxDimension;
     final sourceRevision = ++_sourceRevision;
     _sourceBytes = bytes;
+    _sourceBytesThumb = null;
     _previewComposite = null;
     _sourceName = name;
     _sourceExif = null;
@@ -81,7 +87,29 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     notifyListeners();
 
     _warmUpExif(bytes, sourceRevision);
+    _generateThumbnail(bytes, sourceRevision);
     _schedulePreviewRender(previewMaxDimension, immediate: true);
+  }
+
+  Future<void> _generateThumbnail(Uint8List bytes, int sourceRevision) async {
+    try {
+      final thumb = await compute(_createThumbnail, bytes);
+      if (sourceRevision == _sourceRevision) {
+        _sourceBytesThumb = thumb;
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  static Uint8List _createThumbnail(Uint8List bytes) {
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) return bytes;
+    final thumb = img.copyResize(
+      decoded,
+      width: 200,
+      interpolation: img.Interpolation.linear,
+    );
+    return Uint8List.fromList(img.encodeJpg(thumb, quality: 70));
   }
 
   void updateWatermarkText(String text, {required int previewMaxDimension}) {
@@ -303,10 +331,8 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     ProcessingSettings previous,
     ProcessingSettings next,
   ) {
-    return previous.targetRatio != next.targetRatio ||
-        previous.blurMode != next.blurMode ||
-        previous.blurRadius != next.blurRadius ||
-        previous.blurBrightness != next.blurBrightness ||
-        previous.contentScale != next.contentScale;
+    // 完全禁用自动预览生成，所有效果都在预览层实时渲染
+    // 导出时才生成高质量图像
+    return false;
   }
 }

@@ -73,20 +73,9 @@ class SettingsPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                ThemeModeOption(
-                  icon: Icons.dark_mode_rounded,
-                  title: '深色模式',
-                  subtitle: '更适合暗光环境下编辑照片',
-                  selected: themeModeValue == ThemeMode.dark,
-                  onTap: () => onThemeModeChanged(ThemeMode.dark),
-                ),
-                const SizedBox(height: 4),
-                ThemeModeOption(
-                  icon: Icons.light_mode_rounded,
-                  title: '浅色模式',
-                  subtitle: '提高白天使用时的界面对比度',
-                  selected: themeModeValue == ThemeMode.light,
-                  onTap: () => onThemeModeChanged(ThemeMode.light),
+                ThemeModeSelector(
+                  themeMode: themeModeValue,
+                  onChanged: onThemeModeChanged,
                 ),
               ],
             ),
