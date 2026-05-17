@@ -8,18 +8,31 @@ import 'package:image/image.dart' as img;
 import '../../models/processing_settings.dart';
 import '../frame_processing_models.dart';
 
+const double _colorBorderLayoutLongEdge = 1440;
+const double _colorBorderCircleSize = 64;
+const double _colorBorderLabelWidth = 88;
+const double _colorBorderLabelGap = 12;
+const double _colorBorderLabelFontSize = 11;
+const double _colorBorderMinCanvasWidth = 560;
+
 class ColorBorderFrameRenderer {
   Future<List<PaletteSwatch>> extractPalette(
     Uint8List sourceBytes, {
     int count = 5,
   }) async {
-    final result = await compute(_extractPaletteTask, <String, Object?>{
-      'bytes': sourceBytes,
-      'count': count,
-    });
-    return result
-        .map((item) => PaletteSwatch.fromJson(Map<String, dynamic>.from(item)))
-        .toList();
+    try {
+      return await _extractPaletteWithUiCodec(sourceBytes, count: count);
+    } catch (_) {
+      final result = await compute(_extractPaletteTask, <String, Object?>{
+        'bytes': sourceBytes,
+        'count': count,
+      });
+      return result
+          .map(
+            (item) => PaletteSwatch.fromJson(Map<String, dynamic>.from(item)),
+          )
+          .toList();
+    }
   }
 
   Future<ProcessingOutput> process({
@@ -102,18 +115,34 @@ class ColorBorderFrameRenderer {
       sourceHeight: image.height.toDouble(),
       contentScale: settings.contentScale,
     );
+    final logicalTargetWidth = math.max(1, metrics.canvasWidth.round());
+    final logicalTargetHeight = math.max(1, metrics.canvasHeight.round());
+    final exportScale = _calculateColorBorderExportScale(
+      logicalTargetWidth,
+      logicalTargetHeight,
+    );
     final layoutInfo = LayoutInfo(
-      targetWidth: math.max(1, metrics.canvasWidth.round()),
-      targetHeight: math.max(1, metrics.canvasHeight.round()),
-      contentX: math.max(0, metrics.photoX.round()),
-      contentY: math.max(0, metrics.photoY.round()),
-      contentWidth: math.max(1, metrics.photoWidth.round()),
-      contentHeight: math.max(1, metrics.photoHeight.round()),
+      targetWidth: _scaleDimension(logicalTargetWidth, exportScale),
+      targetHeight: _scaleDimension(logicalTargetHeight, exportScale),
+      contentX: _scalePosition(metrics.photoX, exportScale),
+      contentY: _scalePosition(metrics.photoY, exportScale),
+      contentWidth: _scaleDimension(metrics.photoWidth, exportScale),
+      contentHeight: _scaleDimension(metrics.photoHeight, exportScale),
     );
 
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    _paintColorBorderExport(canvas, image, metrics, palette);
+    canvas.scale(exportScale);
+    _paintColorBorderExport(
+      canvas,
+      image,
+      metrics,
+      palette,
+      canvasSize: Size(
+        logicalTargetWidth.toDouble(),
+        logicalTargetHeight.toDouble(),
+      ),
+    );
 
     final picture = recorder.endRecording();
     final rendered = await picture.toImage(
@@ -160,41 +189,72 @@ class ColorBorderLayoutMetrics {
   final List<double> circleCenters;
 }
 
+class ColorBorderPaletteItemMetrics {
+  const ColorBorderPaletteItemMetrics({
+    required this.labelWidth,
+    required this.circleSize,
+    required this.circleTop,
+    required this.circleBorderWidth,
+    required this.circleGap,
+    required this.labelTop,
+    required this.labelFontSize,
+  });
+
+  final double labelWidth;
+  final double circleSize;
+  final double circleTop;
+  final double circleBorderWidth;
+  final double circleGap;
+  final double labelTop;
+  final double labelFontSize;
+}
+
 ColorBorderLayoutMetrics calculateColorBorderLayoutMetrics({
   required double sourceWidth,
   required double sourceHeight,
   required int contentScale,
 }) {
+  final layoutSource = _normalizeColorBorderSourceSize(
+    sourceWidth,
+    sourceHeight,
+  );
   final scale = contentScale / 100;
-  final contentWidth = sourceWidth * scale;
-  final contentHeight = sourceHeight * scale;
+  final contentWidth = layoutSource.width * scale;
+  final contentHeight = layoutSource.height * scale;
   final unit = math.max(20.0, math.min(contentWidth, contentHeight) * 0.06);
   final outerBorder = math.max(14.0, unit * 0.45);
   final mattePadding = unit;
   final paletteHeight = math.max(120.0, contentHeight * 0.24);
-  final canvasWidth = contentWidth + (outerBorder + mattePadding) * 2;
-  final canvasHeight =
-      contentHeight + (outerBorder + mattePadding) * 2 + paletteHeight;
-  final circleRadius = math.max(12.0, math.min(28.0, canvasWidth / 30));
+  final framePadding = outerBorder + mattePadding;
+  final canvasWidth = math.max(
+    _colorBorderMinCanvasWidth,
+    contentWidth + framePadding * 2,
+  );
+  final canvasHeight = contentHeight + framePadding * 2 + paletteHeight;
+  final circleRadius = _colorBorderCircleSize / 2;
   final circleCenterY =
-      outerBorder +
-      mattePadding +
+      framePadding +
       contentHeight +
       math.max(circleRadius + 8, paletteHeight / 3);
-  final sidePadding = outerBorder + math.max(circleRadius, 18);
-  final usableWidth = canvasWidth - sidePadding * 2;
+  final sidePadding = framePadding + math.max(circleRadius, 18);
+  final minPaletteWidth =
+      sidePadding * 2 +
+      (_colorBorderLabelWidth * 5) +
+      (_colorBorderLabelGap * 4);
+  final resolvedCanvasWidth = math.max(canvasWidth, minPaletteWidth);
+  final usableWidth = resolvedCanvasWidth - sidePadding * 2;
   final itemWidth = usableWidth / 5;
   final centers = List<double>.generate(
     5,
     (index) => sidePadding + (itemWidth * (index + 0.5)),
   );
-  final labelWidth = math.max(circleRadius * 2.6, itemWidth * 0.92);
+  const labelWidth = _colorBorderLabelWidth;
 
   return ColorBorderLayoutMetrics(
-    canvasWidth: canvasWidth,
+    canvasWidth: resolvedCanvasWidth,
     canvasHeight: canvasHeight,
-    photoX: outerBorder + mattePadding,
-    photoY: outerBorder + mattePadding,
+    photoX: (resolvedCanvasWidth - contentWidth) / 2,
+    photoY: framePadding,
     photoWidth: contentWidth,
     photoHeight: contentHeight,
     circleRadius: circleRadius,
@@ -202,6 +262,41 @@ ColorBorderLayoutMetrics calculateColorBorderLayoutMetrics({
     labelWidth: labelWidth,
     circleCenters: centers,
   );
+}
+
+ColorBorderPaletteItemMetrics calculateColorBorderPaletteItemMetrics({
+  required ColorBorderLayoutMetrics metrics,
+  double scale = 1,
+}) {
+  final labelWidth = metrics.labelWidth * scale;
+  final circleSize = _colorBorderCircleSize * scale;
+  final circleTop = metrics.circleCenterY * scale - (circleSize / 2);
+  final circleGap = 10 * scale;
+
+  return ColorBorderPaletteItemMetrics(
+    labelWidth: labelWidth,
+    circleSize: circleSize,
+    circleTop: circleTop,
+    circleBorderWidth: math.max(2, 4 * scale),
+    circleGap: circleGap,
+    labelTop: circleTop + circleSize + circleGap,
+    labelFontSize: math.max(7.0, _colorBorderLabelFontSize * scale),
+  );
+}
+
+({double width, double height}) _normalizeColorBorderSourceSize(
+  double width,
+  double height,
+) {
+  final safeWidth = math.max(1.0, width);
+  final safeHeight = math.max(1.0, height);
+  final longestEdge = math.max(safeWidth, safeHeight);
+  if (longestEdge <= _colorBorderLayoutLongEdge) {
+    return (width: safeWidth, height: safeHeight);
+  }
+
+  final scale = _colorBorderLayoutLongEdge / longestEdge;
+  return (width: safeWidth * scale, height: safeHeight * scale);
 }
 
 Future<Map<String, Object?>> _processRasterTask(
@@ -485,47 +580,7 @@ List<PaletteSwatch> _extractPaletteSwatches(
     buckets.putIfAbsent(key, _PaletteBucket.new).add(r, g, b, weight);
   }
 
-  final sorted = buckets.values.toList()
-    ..sort((a, b) => b.weight.compareTo(a.weight));
-
-  final palette = <PaletteSwatch>[];
-  for (final bucket in sorted) {
-    final candidate = bucket.toColor();
-    if (palette.every((color) => _colorDistance(color, candidate) >= 84)) {
-      palette.add(candidate);
-    }
-    if (palette.length == count) {
-      break;
-    }
-  }
-
-  if (palette.length < count) {
-    for (final bucket in sorted) {
-      final candidate = bucket.toColor();
-      final exists = palette.any(
-        (color) =>
-            color.red == candidate.red &&
-            color.green == candidate.green &&
-            color.blue == candidate.blue,
-      );
-      if (!exists) {
-        palette.add(candidate);
-      }
-      if (palette.length == count) {
-        break;
-      }
-    }
-  }
-
-  while (palette.length < count) {
-    palette.add(
-      palette.isNotEmpty
-          ? palette.last
-          : const PaletteSwatch(red: 236, green: 226, blue: 214),
-    );
-  }
-
-  return palette;
+  return _buildPaletteFromBuckets(buckets, count: count);
 }
 
 int _colorDistance(PaletteSwatch left, PaletteSwatch right) {
@@ -587,6 +642,137 @@ List<Map<String, int>> _extractPaletteTask(Map<String, Object?> input) {
   ).map((item) => item.toJson()).toList();
 }
 
+Future<List<PaletteSwatch>> _extractPaletteWithUiCodec(
+  Uint8List sourceBytes, {
+  required int count,
+}) async {
+  const sampleLongEdge = 96.0;
+  final buffer = await ui.ImmutableBuffer.fromUint8List(sourceBytes);
+  ui.ImageDescriptor? descriptor;
+
+  try {
+    descriptor = await ui.ImageDescriptor.encoded(buffer);
+    final sourceWidth = math.max(1, descriptor.width);
+    final sourceHeight = math.max(1, descriptor.height);
+    final scale = math.min(
+      1.0,
+      sampleLongEdge / math.max(sourceWidth, sourceHeight),
+    );
+    final targetWidth = math.max(1, (sourceWidth * scale).round());
+    final targetHeight = math.max(1, (sourceHeight * scale).round());
+    final codec = await descriptor.instantiateCodec(
+      targetWidth: targetWidth,
+      targetHeight: targetHeight,
+    );
+
+    try {
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      try {
+        final byteData = await image.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
+        if (byteData == null) {
+          throw StateError('无法读取预览取色像素。');
+        }
+        return _extractPaletteSwatchesFromRgba(
+          byteData.buffer.asUint8List(
+            byteData.offsetInBytes,
+            byteData.lengthInBytes,
+          ),
+          width: image.width,
+          height: image.height,
+          count: count,
+        );
+      } finally {
+        image.dispose();
+      }
+    } finally {
+      codec.dispose();
+    }
+  } finally {
+    descriptor?.dispose();
+    buffer.dispose();
+  }
+}
+
+List<PaletteSwatch> _extractPaletteSwatchesFromRgba(
+  Uint8List rgbaBytes, {
+  required int width,
+  required int height,
+  required int count,
+}) {
+  final buckets = <int, _PaletteBucket>{};
+  final pixelCount = math.min(width * height, rgbaBytes.length ~/ 4);
+
+  for (var pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++) {
+    final offset = pixelIndex * 4;
+    final r = rgbaBytes[offset];
+    final g = rgbaBytes[offset + 1];
+    final b = rgbaBytes[offset + 2];
+    final a = rgbaBytes[offset + 3];
+    if (a < 200) {
+      continue;
+    }
+
+    final saturation =
+        math.max(r, math.max(g, b)) - math.min(r, math.min(g, b));
+    final brightness = (r + g + b) / 3;
+    final weight = (saturation + (brightness < 240 ? 28 : 8)).round();
+    final key = ((r ~/ 32) << 10) | ((g ~/ 32) << 5) | (b ~/ 32);
+    buckets.putIfAbsent(key, _PaletteBucket.new).add(r, g, b, weight);
+  }
+
+  return _buildPaletteFromBuckets(buckets, count: count);
+}
+
+List<PaletteSwatch> _buildPaletteFromBuckets(
+  Map<int, _PaletteBucket> buckets, {
+  required int count,
+}) {
+  final sorted = buckets.values.toList()
+    ..sort((a, b) => b.weight.compareTo(a.weight));
+
+  final palette = <PaletteSwatch>[];
+  for (final bucket in sorted) {
+    final candidate = bucket.toColor();
+    if (palette.every((color) => _colorDistance(color, candidate) >= 84)) {
+      palette.add(candidate);
+    }
+    if (palette.length == count) {
+      break;
+    }
+  }
+
+  if (palette.length < count) {
+    for (final bucket in sorted) {
+      final candidate = bucket.toColor();
+      final exists = palette.any(
+        (color) =>
+            color.red == candidate.red &&
+            color.green == candidate.green &&
+            color.blue == candidate.blue,
+      );
+      if (!exists) {
+        palette.add(candidate);
+      }
+      if (palette.length == count) {
+        break;
+      }
+    }
+  }
+
+  while (palette.length < count) {
+    palette.add(
+      palette.isNotEmpty
+          ? palette.last
+          : const PaletteSwatch(red: 236, green: 226, blue: 214),
+    );
+  }
+
+  return palette;
+}
+
 Uint8List _encodeRaster(img.Image image, String format, int jpegQuality) {
   return switch (format) {
     'jpeg' => img.encodeJpg(image, quality: jpegQuality),
@@ -622,18 +808,30 @@ int _scalePositiveInt(int value, double scale) {
   return math.max(1, (value * scale).round());
 }
 
+double _calculateColorBorderExportScale(int width, int height) {
+  const targetLongEdge = 4096.0;
+  const maxScale = 2.0;
+  final longestEdge = math.max(width, height).toDouble();
+  if (longestEdge >= targetLongEdge) {
+    return 1.0;
+  }
+  return math.min(maxScale, targetLongEdge / longestEdge);
+}
+
+int _scaleDimension(num value, double scale) =>
+    math.max(1, (value * scale).round());
+
+int _scalePosition(num value, double scale) =>
+    math.max(0, (value * scale).round());
+
 void _paintColorBorderExport(
   Canvas canvas,
   ui.Image image,
   ColorBorderLayoutMetrics metrics,
-  List<PaletteSwatch> palette,
-) {
-  final canvasRect = Rect.fromLTWH(
-    0,
-    0,
-    metrics.canvasWidth,
-    metrics.canvasHeight,
-  );
+  List<PaletteSwatch> palette, {
+  required Size canvasSize,
+}) {
+  final canvasRect = Rect.fromLTWH(0, 0, canvasSize.width, canvasSize.height);
   canvas.drawRect(canvasRect, Paint()..color = Colors.white);
 
   final photoRect = Rect.fromLTWH(
@@ -660,20 +858,18 @@ void _paintColorBorderExport(
           const PaletteSwatch(red: 236, green: 226, blue: 214),
         )
       : palette;
-  final circleSize = math.min(metrics.labelWidth, metrics.circleRadius * 3.1);
-  final circleRadius = circleSize / 2;
-  final strokeWidth = math.max(4.0, circleSize * 0.08);
-  final labelFontSize = math.max(
-    14.0,
-    math.min(24.0, metrics.labelWidth * 0.18),
-  );
+  final itemMetrics = calculateColorBorderPaletteItemMetrics(metrics: metrics);
+  final circleRadius = itemMetrics.circleSize / 2;
 
   for (
     var index = 0;
     index < swatches.length && index < metrics.circleCenters.length;
     index++
   ) {
-    final center = Offset(metrics.circleCenters[index], metrics.circleCenterY);
+    final center = Offset(
+      metrics.circleCenters[index],
+      itemMetrics.circleTop + circleRadius,
+    );
     canvas.drawCircle(
       center,
       circleRadius,
@@ -683,33 +879,36 @@ void _paintColorBorderExport(
     );
     canvas.drawCircle(
       center,
-      circleRadius - (strokeWidth / 2),
+      circleRadius - (itemMetrics.circleBorderWidth / 2),
       Paint()
         ..color = Colors.white
         ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth,
+        ..strokeWidth = itemMetrics.circleBorderWidth,
     );
 
-    final labelPainter = TextPainter(
-      text: TextSpan(
-        text: swatches[index].hexCode,
-        style: TextStyle(
-          color: const Color(0xFF6D6259),
-          fontSize: labelFontSize,
-          fontWeight: FontWeight.w700,
-          height: 1.1,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-      maxLines: 1,
-      ellipsis: '',
-    )..layout(maxWidth: metrics.labelWidth);
+    final labelPainter =
+        TextPainter(
+          textAlign: TextAlign.center,
+          textWidthBasis: TextWidthBasis.parent,
+          text: TextSpan(
+            text: swatches[index].hexCode,
+            style: TextStyle(
+              color: const Color(0xFF6D6259),
+              fontSize: itemMetrics.labelFontSize,
+              fontWeight: FontWeight.w700,
+              height: 1.1,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+          ellipsis: '',
+        )..layout(
+          minWidth: itemMetrics.labelWidth,
+          maxWidth: itemMetrics.labelWidth,
+        );
     labelPainter.paint(
       canvas,
-      Offset(
-        center.dx - (labelPainter.width / 2),
-        center.dy + circleRadius + 10,
-      ),
+      Offset(center.dx - (itemMetrics.labelWidth / 2), itemMetrics.labelTop),
     );
   }
 }

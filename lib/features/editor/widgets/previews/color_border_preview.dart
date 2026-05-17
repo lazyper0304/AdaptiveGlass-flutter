@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -47,13 +46,10 @@ class ColorBorderPreview extends StatelessWidget {
               metrics.photoWidth * scale,
               metrics.photoHeight * scale,
             );
-            final labelWidth = metrics.labelWidth * scale;
-            final circleSize = math.min(
-              labelWidth,
-              metrics.circleRadius * 3.1 * scale,
+            final itemMetrics = calculateColorBorderPaletteItemMetrics(
+              metrics: metrics,
+              scale: scale,
             );
-            final circleTop = metrics.circleCenterY * scale - (circleSize / 2);
-            final labelFontSize = math.max(7.0, 10.5 * scale);
 
             return DecoratedBox(
               decoration: const BoxDecoration(color: Colors.white),
@@ -82,41 +78,44 @@ class ColorBorderPreview extends StatelessWidget {
                     Positioned(
                       left:
                           (metrics.circleCenters[index] * scale) -
-                          (labelWidth / 2),
-                      top: circleTop,
-                      width: labelWidth,
+                          (itemMetrics.labelWidth / 2),
+                      top: itemMetrics.circleTop,
+                      width: itemMetrics.labelWidth,
                       child: Column(
                         children: [
                           Container(
-                            width: labelWidth,
+                            width: itemMetrics.labelWidth,
                             alignment: Alignment.center,
                             child: Container(
-                              width: circleSize,
-                              height: circleSize,
+                              width: itemMetrics.circleSize,
+                              height: itemMetrics.circleSize,
                               decoration: BoxDecoration(
                                 color: swatches[index].toColor(),
                                 shape: BoxShape.circle,
                                 border: Border.all(
                                   color: Colors.white,
-                                  width: math.max(2, 4 * scale),
+                                  width: itemMetrics.circleBorderWidth,
                                 ),
                               ),
                             ),
                           ),
-                          SizedBox(height: 10 * scale),
+                          SizedBox(height: itemMetrics.circleGap),
                           SizedBox(
-                            width: labelWidth,
-                            child: Text(
-                              swatches[index].hexCode,
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              softWrap: false,
-                              overflow: TextOverflow.visible,
-                              style: TextStyle(
-                                color: const Color(0xFF6D6259),
-                                fontSize: labelFontSize,
-                                fontWeight: FontWeight.w700,
-                                height: 1.1,
+                            width: itemMetrics.labelWidth,
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.center,
+                              child: Text(
+                                swatches[index].hexCode,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                softWrap: false,
+                                style: TextStyle(
+                                  color: const Color(0xFF6D6259),
+                                  fontSize: itemMetrics.labelFontSize,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.1,
+                                ),
                               ),
                             ),
                           ),
