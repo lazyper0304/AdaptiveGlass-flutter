@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:adaptive_glass_flutter/features/editor/adaptive_glass_editor_controller.dart';
+import 'package:adaptive_glass_flutter/features/editor/widgets/tappable_switch_row.dart';
 import 'package:adaptive_glass_flutter/features/home/adaptive_glass_home_page.dart';
 import 'package:adaptive_glass_flutter/models/frame_template.dart';
 import 'package:adaptive_glass_flutter/main.dart';
@@ -62,6 +63,66 @@ void main() {
       tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
       ThemeMode.light,
     );
+  });
+
+  testWidgets('switch row toggles when label or switch is tapped', (
+    tester,
+  ) async {
+    var value = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return TappableSwitchRow(
+                label: '启用底部信息边框',
+                value: value,
+                activeColor: Colors.green,
+                onChanged: (nextValue) => setState(() {
+                  value = nextValue;
+                }),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('启用底部信息边框'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(value, isTrue);
+
+    final rowRect = tester.getRect(find.byType(TappableSwitchRow));
+    await tester.tapAt(Offset(rowRect.right - 16, rowRect.center.dy));
+    await tester.pump();
+    await tester.pump();
+
+    expect(value, isFalse);
+  });
+
+  test('watermark border info border can be disabled', () {
+    final controller = AdaptiveGlassEditorController(
+      template: FrameTemplate.watermarkBorder,
+      processor: _FakeProcessor(),
+    );
+    addTearDown(controller.dispose);
+
+    expect(controller.settings.classicInfoBorder.enabled, isTrue);
+
+    controller.updateSettings(
+      controller.settings.copyWith(
+        classicInfoBorder: controller.settings.classicInfoBorder.copyWith(
+          enabled: false,
+        ),
+      ),
+      rerender: false,
+      previewMaxDimension: 100,
+    );
+
+    expect(controller.settings.classicInfoBorder.enabled, isFalse);
   });
 
   test(

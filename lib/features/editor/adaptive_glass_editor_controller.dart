@@ -421,9 +421,6 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
           blurRadius: 0,
           blurBrightness: 0,
           watermark: normalized.watermark.copyWith(enabled: false),
-          classicInfoBorder: normalized.classicInfoBorder.copyWith(
-            enabled: true,
-          ),
         );
       case FrameTemplate.colorBorder:
         return normalized.copyWith(

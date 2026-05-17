@@ -5,6 +5,7 @@ import '../../../models/frame_template.dart';
 import '../../../models/processing_settings.dart';
 import '../models/export_format_option.dart';
 import 'classic_info_border_section.dart';
+import 'tappable_switch_row.dart';
 
 enum _ClassicSettingsCategory {
   canvas('画布'),
@@ -463,41 +464,13 @@ class _SwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     final accent = _editorAccentColor(context);
 
-    return Semantics(
-      button: true,
-      toggled: value,
+    return TappableSwitchRow(
       label: label,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => onChanged(!value),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: colors.onSurface.withValues(alpha: 0.88),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              AbsorbPointer(
-                child: GlassSwitch(
-                  value: value,
-                  onChanged: onChanged,
-                  activeColor: accent,
-                  quality: GlassQuality.standard,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      value: value,
+      onChanged: onChanged,
+      activeColor: accent,
     );
   }
 }

@@ -30,41 +30,6 @@ class SettingsPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '工作区',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: colors.onSurface,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ProfileAction(
-                  icon: Icons.photo_filter_rounded,
-                  title: '背景模糊编辑器',
-                  subtitle: '打开现有图片处理流程',
-                  onTap: () => context.push('/editor', extra: '光影编辑'),
-                ),
-                ProfileAction(
-                  icon: Icons.bookmarks_rounded,
-                  title: '本地预设',
-                  subtitle: '在编辑器中保存或加载 .agp 文件',
-                  onTap: () => context.push('/editor', extra: '光影编辑'),
-                ),
-                ProfileAction(
-                  icon: Icons.ios_share_rounded,
-                  title: '导出图片',
-                  subtitle: '支持 PNG 和 JPG',
-                  onTap: () => context.push('/editor', extra: '光影编辑'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          FrostedPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
                   '外观',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: colors.onSurface,

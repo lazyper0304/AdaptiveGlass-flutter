@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../../models/classic_info_border_settings.dart';
+import 'tappable_switch_row.dart';
 
 class ClassicInfoBorderSection extends StatefulWidget {
   const ClassicInfoBorderSection({
@@ -237,40 +238,11 @@ class _SwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Semantics(
-      button: true,
-      toggled: value,
+    return TappableSwitchRow(
       label: label,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => onChanged(!value),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: colors.onSurface.withValues(alpha: 0.88),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              AbsorbPointer(
-                child: GlassSwitch(
-                  value: value,
-                  onChanged: onChanged,
-                  activeColor: _editorAccentColor(context),
-                  quality: GlassQuality.standard,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      value: value,
+      onChanged: onChanged,
+      activeColor: _editorAccentColor(context),
     );
   }
 }
