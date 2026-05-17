@@ -5,7 +5,19 @@ import '../../../models/frame_template.dart';
 import '../../../models/processing_settings.dart';
 import '../models/export_format_option.dart';
 
-class EditorSettingsPanel extends StatelessWidget {
+enum _ClassicSettingsCategory {
+  canvas('画布'),
+  background('背景'),
+  frame('边框'),
+  watermark('水印'),
+  export('导出');
+
+  const _ClassicSettingsCategory(this.label);
+
+  final String label;
+}
+
+class EditorSettingsPanel extends StatefulWidget {
   const EditorSettingsPanel({
     super.key,
     required this.template,
@@ -22,6 +34,13 @@ class EditorSettingsPanel extends StatelessWidget {
   final TextEditingController watermarkController;
   final ValueChanged<ProcessingSettings> onSettingsChanged;
   final ValueChanged<ExportFormatOption> onExportFormatChanged;
+
+  @override
+  State<EditorSettingsPanel> createState() => _EditorSettingsPanelState();
+}
+
+class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
+  _ClassicSettingsCategory _category = _ClassicSettingsCategory.canvas;
 
   @override
   Widget build(BuildContext context) {
@@ -43,8 +62,8 @@ class EditorSettingsPanel extends StatelessWidget {
         style: TextStyle(color: colors.onSurface.withValues(alpha: 0.88)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: switch (template) {
-            FrameTemplate.classic => _buildClassicSections(),
+          children: switch (widget.template) {
+            FrameTemplate.classic => _buildClassicSections(context),
             FrameTemplate.colorBorder => _buildColorBorderSections(context),
           },
         ),
@@ -52,179 +71,249 @@ class EditorSettingsPanel extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildClassicSections() {
+  List<Widget> _buildClassicSections(BuildContext context) {
     return [
-      _SectionTitle(text: '画布比例'),
-      _EnumRow<RatioPreset>(
-        value: settings.targetRatio,
-        values: RatioPreset.values,
-        labelBuilder: (item) => item.label,
-        onChanged: (value) =>
-            onSettingsChanged(settings.copyWith(targetRatio: value)),
-      ),
-      _SliderRow(
-        label: '内容缩放 ${settings.contentScale}%',
-        value: settings.contentScale.toDouble(),
-        min: 50,
-        max: 100,
-        onChanged: (value) =>
-            onSettingsChanged(settings.copyWith(contentScale: value.round())),
-      ),
-      _SectionTitle(text: '背景'),
-      _SliderRow(
-        label: '模糊半径 ${settings.blurRadius}',
-        value: settings.blurRadius.toDouble(),
-        min: 0,
-        max: 100,
-        onChanged: (value) =>
-            onSettingsChanged(settings.copyWith(blurRadius: value.round())),
-      ),
-      _SliderRow(
-        label: '背景亮度 ${settings.blurBrightness}',
-        value: settings.blurBrightness.toDouble(),
-        min: -100,
-        max: 100,
-        onChanged: (value) =>
-            onSettingsChanged(settings.copyWith(blurBrightness: value.round())),
-      ),
-      _EnumRow<BlurModeOption>(
-        value: settings.blurMode,
-        values: BlurModeOption.values,
-        labelBuilder: (item) => item.label,
-        onChanged: (value) =>
-            onSettingsChanged(settings.copyWith(blurMode: value)),
-      ),
-      _SectionTitle(text: '边框'),
-      _EnumRow<BorderStyleOption>(
-        value: settings.borderStyle,
-        values: BorderStyleOption.values,
-        labelBuilder: (item) => item.label,
-        onChanged: (value) =>
-            onSettingsChanged(settings.copyWith(borderStyle: value)),
-      ),
-      _SectionTitle(text: '导出'),
-      _EnumRow<ExportFormatOption>(
-        value: exportFormat,
-        values: ExportFormatOption.values,
-        labelBuilder: (item) => item.label,
-        onChanged: onExportFormatChanged,
-      ),
-      _SliderRow(
-        label: '边框宽度 ${settings.borderWidth}',
-        value: settings.borderWidth.toDouble(),
-        min: 0,
-        max: 50,
-        onChanged: (value) =>
-            onSettingsChanged(settings.copyWith(borderWidth: value.round())),
-      ),
-      _SliderRow(
-        label: '圆角半径 ${settings.cornerRadius}',
-        value: settings.cornerRadius.toDouble(),
-        min: 0,
-        max: 100,
-        onChanged: (value) =>
-            onSettingsChanged(settings.copyWith(cornerRadius: value.round())),
-      ),
-      _SliderRow(
-        label: '阴影强度 ${settings.shadowSize}',
-        value: settings.shadowSize.toDouble(),
-        min: 0,
-        max: 50,
-        onChanged: (value) =>
-            onSettingsChanged(settings.copyWith(shadowSize: value.round())),
-      ),
-      _EnumRow<MonoColor>(
-        value: settings.borderColor,
-        values: MonoColor.values,
-        labelBuilder: (item) => item.label,
-        onChanged: (value) =>
-            onSettingsChanged(settings.copyWith(borderColor: value)),
-      ),
-      _SectionTitle(text: '水印'),
-      _SwitchRow(
-        label: '启用水印',
-        value: settings.watermark.enabled,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(
-            watermark: settings.watermark.copyWith(enabled: value),
-          ),
+      _SectionTitle(text: '参数分类'),
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: _ClassicSettingsCategory.values
+              .map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GlassChip(
+                    label: item.label,
+                    selected: _category == item,
+                    selectedColor: _editorAccentColor(
+                      context,
+                    ).withValues(alpha: 0.22),
+                    labelStyle: TextStyle(
+                      color: _category == item
+                          ? _editorAccentColor(context)
+                          : Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.82),
+                      fontWeight: _category == item
+                          ? FontWeight.w800
+                          : FontWeight.w600,
+                    ),
+                    onTap: () => setState(() {
+                      _category = item;
+                    }),
+                  ),
+                ),
+              )
+              .toList(),
         ),
       ),
-      const SizedBox(height: 12),
-      GlassTextField(
-        controller: watermarkController,
-        placeholder: '自定义文字',
-        prefixIcon: const Icon(Icons.text_fields_rounded, size: 20),
-        quality: GlassQuality.standard,
-      ),
-      const SizedBox(height: 12),
-      _EnumRow<WatermarkModeOption>(
-        value: settings.watermark.textMode,
-        values: WatermarkModeOption.values,
-        labelBuilder: (item) => item.label,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(
-            watermark: settings.watermark.copyWith(textMode: value),
-          ),
-        ),
-      ),
-      _EnumRow<WatermarkPosition>(
-        value: settings.watermark.position == WatermarkPosition.manual
-            ? WatermarkPosition.bottomCenter
-            : settings.watermark.position,
-        values: WatermarkPosition.values
-            .where((item) => item != WatermarkPosition.manual)
-            .toList(),
-        labelBuilder: (item) => item.label,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(
-            watermark: settings.watermark.copyWith(position: value),
-          ),
-        ),
-      ),
-      _EnumRow<MonoColor>(
-        value: settings.watermark.textColor,
-        values: MonoColor.values,
-        labelBuilder: (item) => item.label,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(
-            watermark: settings.watermark.copyWith(textColor: value),
-          ),
-        ),
-      ),
-      _EnumRow<WatermarkFontFamily>(
-        value: settings.watermark.fontFamily,
-        values: WatermarkFontFamily.values,
-        labelBuilder: (item) => item.label,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(
-            watermark: settings.watermark.copyWith(fontFamily: value),
-          ),
-        ),
-      ),
-      _SliderRow(
-        label: '透明度 ${settings.watermark.opacity}',
-        value: settings.watermark.opacity.toDouble(),
-        min: 0,
-        max: 100,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(
-            watermark: settings.watermark.copyWith(opacity: value.round()),
-          ),
-        ),
-      ),
-      _SliderRow(
-        label: '字体缩放 ${(settings.watermark.sizeScale * 100).round()}%',
-        value: settings.watermark.sizeScale * 100,
-        min: 25,
-        max: 250,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(
-            watermark: settings.watermark.copyWith(sizeScale: value / 100),
+      const SizedBox(height: 10),
+      AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        child: KeyedSubtree(
+          key: ValueKey(_category),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: _classicCategoryContent(),
           ),
         ),
       ),
     ];
+  }
+
+  List<Widget> _classicCategoryContent() {
+    final settings = widget.settings;
+
+    return switch (_category) {
+      _ClassicSettingsCategory.canvas => [
+        _SectionTitle(text: '画布比例'),
+        _EnumRow<RatioPreset>(
+          value: settings.targetRatio,
+          values: RatioPreset.values,
+          labelBuilder: (item) => item.label,
+          onChanged: (value) =>
+              widget.onSettingsChanged(settings.copyWith(targetRatio: value)),
+        ),
+        _SliderRow(
+          label: '内容缩放 ${settings.contentScale}%',
+          value: settings.contentScale.toDouble(),
+          min: 50,
+          max: 100,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(contentScale: value.round()),
+          ),
+        ),
+      ],
+      _ClassicSettingsCategory.background => [
+        _SectionTitle(text: '背景'),
+        _SliderRow(
+          label: '模糊半径 ${settings.blurRadius}',
+          value: settings.blurRadius.toDouble(),
+          min: 0,
+          max: 100,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(blurRadius: value.round()),
+          ),
+        ),
+        _SliderRow(
+          label: '背景亮度 ${settings.blurBrightness}',
+          value: settings.blurBrightness.toDouble(),
+          min: -100,
+          max: 100,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(blurBrightness: value.round()),
+          ),
+        ),
+        _EnumRow<BlurModeOption>(
+          value: settings.blurMode,
+          values: BlurModeOption.values,
+          labelBuilder: (item) => item.label,
+          onChanged: (value) =>
+              widget.onSettingsChanged(settings.copyWith(blurMode: value)),
+        ),
+      ],
+      _ClassicSettingsCategory.frame => [
+        _SectionTitle(text: '边框'),
+        _EnumRow<BorderStyleOption>(
+          value: settings.borderStyle,
+          values: BorderStyleOption.values,
+          labelBuilder: (item) => item.label,
+          onChanged: (value) =>
+              widget.onSettingsChanged(settings.copyWith(borderStyle: value)),
+        ),
+        _SliderRow(
+          label: '边框宽度 ${settings.borderWidth}',
+          value: settings.borderWidth.toDouble(),
+          min: 0,
+          max: 50,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(borderWidth: value.round()),
+          ),
+        ),
+        _SliderRow(
+          label: '圆角半径 ${settings.cornerRadius}',
+          value: settings.cornerRadius.toDouble(),
+          min: 0,
+          max: 100,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(cornerRadius: value.round()),
+          ),
+        ),
+        _SliderRow(
+          label: '阴影强度 ${settings.shadowSize}',
+          value: settings.shadowSize.toDouble(),
+          min: 0,
+          max: 50,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(shadowSize: value.round()),
+          ),
+        ),
+        _EnumRow<MonoColor>(
+          value: settings.borderColor,
+          values: MonoColor.values,
+          labelBuilder: (item) => item.label,
+          onChanged: (value) =>
+              widget.onSettingsChanged(settings.copyWith(borderColor: value)),
+        ),
+      ],
+      _ClassicSettingsCategory.watermark => [
+        _SectionTitle(text: '水印'),
+        _SwitchRow(
+          label: '启用水印',
+          value: settings.watermark.enabled,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(
+              watermark: settings.watermark.copyWith(enabled: value),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        GlassTextField(
+          controller: widget.watermarkController,
+          placeholder: '自定义文字',
+          prefixIcon: const Icon(Icons.text_fields_rounded, size: 20),
+          quality: GlassQuality.standard,
+        ),
+        const SizedBox(height: 12),
+        _EnumRow<WatermarkModeOption>(
+          value: settings.watermark.textMode,
+          values: WatermarkModeOption.values,
+          labelBuilder: (item) => item.label,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(
+              watermark: settings.watermark.copyWith(textMode: value),
+            ),
+          ),
+        ),
+        _EnumRow<WatermarkPosition>(
+          value: settings.watermark.position == WatermarkPosition.manual
+              ? WatermarkPosition.bottomCenter
+              : settings.watermark.position,
+          values: WatermarkPosition.values
+              .where((item) => item != WatermarkPosition.manual)
+              .toList(),
+          labelBuilder: (item) => item.label,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(
+              watermark: settings.watermark.copyWith(position: value),
+            ),
+          ),
+        ),
+        _EnumRow<MonoColor>(
+          value: settings.watermark.textColor,
+          values: MonoColor.values,
+          labelBuilder: (item) => item.label,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(
+              watermark: settings.watermark.copyWith(textColor: value),
+            ),
+          ),
+        ),
+        _EnumRow<WatermarkFontFamily>(
+          value: settings.watermark.fontFamily,
+          values: WatermarkFontFamily.values,
+          labelBuilder: (item) => item.label,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(
+              watermark: settings.watermark.copyWith(fontFamily: value),
+            ),
+          ),
+        ),
+        _SliderRow(
+          label: '透明度 ${settings.watermark.opacity}',
+          value: settings.watermark.opacity.toDouble(),
+          min: 0,
+          max: 100,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(
+              watermark: settings.watermark.copyWith(opacity: value.round()),
+            ),
+          ),
+        ),
+        _SliderRow(
+          label: '字体缩放 ${(settings.watermark.sizeScale * 100).round()}%',
+          value: settings.watermark.sizeScale * 100,
+          min: 25,
+          max: 250,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(
+              watermark: settings.watermark.copyWith(sizeScale: value / 100),
+            ),
+          ),
+        ),
+      ],
+      _ClassicSettingsCategory.export => [
+        _SectionTitle(text: '导出'),
+        _EnumRow<ExportFormatOption>(
+          value: widget.exportFormat,
+          values: ExportFormatOption.values,
+          labelBuilder: (item) => item.label,
+          onChanged: widget.onExportFormatChanged,
+        ),
+      ],
+    };
   }
 
   List<Widget> _buildColorBorderSections(BuildContext context) {
@@ -250,10 +339,10 @@ class EditorSettingsPanel extends StatelessWidget {
       ),
       _SectionTitle(text: '导出'),
       _EnumRow<ExportFormatOption>(
-        value: exportFormat,
+        value: widget.exportFormat,
         values: ExportFormatOption.values,
         labelBuilder: (item) => item.label,
-        onChanged: onExportFormatChanged,
+        onChanged: widget.onExportFormatChanged,
       ),
     ];
   }
