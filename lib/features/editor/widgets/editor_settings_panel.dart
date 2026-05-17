@@ -76,7 +76,7 @@ class EditorSettingsPanel extends StatelessWidget {
         label: '模糊半径 ${settings.blurRadius}',
         value: settings.blurRadius.toDouble(),
         min: 0,
-        max: 50,
+        max: 100,
         onChanged: (value) => onSettingsChanged(
           settings.copyWith(blurRadius: value.round()),
         ),

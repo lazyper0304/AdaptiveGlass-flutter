@@ -135,6 +135,29 @@ void main() {
     expect(processor.previewCompositeCalls, 0);
     expect(processor.paletteCalls, 1);
   });
+
+  test(
+    'classic realtime preview does not keep processing state active',
+    () async {
+      final processor = _FakeProcessor();
+      final controller = AdaptiveGlassEditorController(
+        template: FrameTemplate.classic,
+        processor: processor,
+      );
+      addTearDown(controller.dispose);
+
+      await controller.loadSource(
+        bytes: Uint8List.fromList(const [1, 2, 3]),
+        name: 'sample.jpg',
+        previewMaxDimension: 100,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(controller.processing, isFalse);
+      expect(controller.status, '预览已更新');
+      expect(processor.previewCompositeCalls, 1);
+    },
+  );
 }
 
 class _FakeProcessor extends AdaptiveGlassProcessor {
@@ -177,11 +200,8 @@ class _FakeProcessor extends AdaptiveGlassProcessor {
     paletteCalls += 1;
     return List<PaletteSwatch>.generate(
       count,
-      (index) => PaletteSwatch(
-        red: 20 + index,
-        green: 120 + index,
-        blue: 220 + index,
-      ),
+      (index) =>
+          PaletteSwatch(red: 20 + index, green: 120 + index, blue: 220 + index),
     );
   }
 }

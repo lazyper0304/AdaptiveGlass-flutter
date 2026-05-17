@@ -55,6 +55,7 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
   bool get hasSource => _sourceBytes != null;
   Uint8List? get sourceBytes => _sourceBytes;
   Uint8List? get sourceBytesThumb => _sourceBytesThumb;
+  bool get _usesRealtimePreviewStatus => _template == FrameTemplate.classic;
 
   void setStatus(String status, {bool? processing}) {
     _status = status;
@@ -92,8 +93,8 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     _sourceName = name;
     _sourceExif = null;
     _sourceExifFuture = null;
-    _processing = true;
-    _status = '正在生成预览...';
+    _processing = !_usesRealtimePreviewStatus;
+    _status = _usesRealtimePreviewStatus ? '预览已更新' : '正在生成预览...';
     notifyListeners();
 
     _warmUpExif(bytes, sourceRevision);
@@ -170,7 +171,10 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     _settings = _normalizeSettingsForTemplate(_template, settings);
 
     if (rerender && hasSource) {
-      if (_previewInFlight && _previewComposite == null) {
+      if (_usesRealtimePreviewStatus) {
+        _processing = false;
+        _status = '预览已更新';
+      } else if (_previewInFlight && _previewComposite == null) {
         _processing = true;
         _status = '正在生成预览...';
       } else {
@@ -220,7 +224,7 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     }
 
     final baseName = p.basenameWithoutExtension(sourceName);
-    final fileName = '${baseName}_光影边框${_exportFormat.extension}';
+    final fileName = '${baseName}_光影相框${_exportFormat.extension}';
 
     _processing = true;
     _status = '正在导出完整分辨率图片...';
@@ -285,9 +289,11 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
 
     _debounceTimer?.cancel();
     final taskId = ++_currentTaskId;
-    _processing = true;
-    _status = _previewComposite == null ? '正在生成预览...' : '正在刷新预览...';
-    notifyListeners();
+    if (!_usesRealtimePreviewStatus) {
+      _processing = true;
+      _status = _previewComposite == null ? '正在生成预览...' : '正在刷新预览...';
+      notifyListeners();
+    }
 
     _debounceTimer = Timer(
       immediate ? Duration.zero : const Duration(milliseconds: 120),
@@ -328,13 +334,17 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
         return;
       }
       _previewComposite = output;
-      _processing = false;
-      _status = '预览已更新';
-      notifyListeners();
+      if (!_usesRealtimePreviewStatus) {
+        _processing = false;
+        _status = '预览已更新';
+        notifyListeners();
+      }
     } catch (error) {
-      _processing = false;
-      _status = '预览生成失败：$error';
-      notifyListeners();
+      if (!_usesRealtimePreviewStatus) {
+        _processing = false;
+        _status = '预览生成失败：$error';
+        notifyListeners();
+      }
     } finally {
       _previewInFlight = false;
       final shouldQueueNext =
@@ -348,7 +358,9 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     }
   }
 
-  static ProcessingSettings _defaultSettingsForTemplate(FrameTemplate template) {
+  static ProcessingSettings _defaultSettingsForTemplate(
+    FrameTemplate template,
+  ) {
     switch (template) {
       case FrameTemplate.classic:
         return const ProcessingSettings();

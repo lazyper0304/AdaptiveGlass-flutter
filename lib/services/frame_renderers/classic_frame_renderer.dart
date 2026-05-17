@@ -100,12 +100,13 @@ class ClassicFrameRenderer {
     );
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-
-    _paintClassicBackground(canvas, sourceImage, layoutInfo, settings);
-    _paintClassicForeground(canvas, sourceImage, layoutInfo, settings);
-    if (settings.watermark.enabled) {
-      _paintClassicWatermark(canvas, settings.watermark, exif, layoutInfo);
-    }
+    paintClassicFrameToCanvas(
+      canvas: canvas,
+      image: sourceImage,
+      layoutInfo: layoutInfo,
+      settings: settings,
+      exif: exif,
+    );
 
     final picture = recorder.endRecording();
     final rendered = await picture.toImage(
@@ -123,6 +124,20 @@ class ClassicFrameRenderer {
       layoutInfo: layoutInfo,
       exif: exif,
     );
+  }
+}
+
+void paintClassicFrameToCanvas({
+  required Canvas canvas,
+  required ui.Image image,
+  required LayoutInfo layoutInfo,
+  required ProcessingSettings settings,
+  required ExifSnapshot exif,
+}) {
+  _paintClassicBackground(canvas, image, layoutInfo, settings);
+  _paintClassicForeground(canvas, image, layoutInfo, settings);
+  if (settings.watermark.enabled) {
+    _paintClassicWatermark(canvas, settings.watermark, exif, layoutInfo);
   }
 }
 
@@ -348,14 +363,8 @@ void _paintClassicBackground(
   );
   final brightnessFactor = math.max(0.0, 1.0 + (settings.blurBrightness / 100));
 
-  final paint = Paint()
-    ..filterQuality = FilterQuality.high
-    ..imageFilter = settings.blurRadius > 0
-        ? ui.ImageFilter.blur(
-            sigmaX: settings.blurRadius / 4,
-            sigmaY: settings.blurRadius / 4,
-          )
-        : null
+  final imagePaint = Paint()
+    ..filterQuality = FilterQuality.medium
     ..colorFilter = (brightnessFactor - 1.0).abs() > 0.001
         ? ui.ColorFilter.matrix(<double>[
             brightnessFactor,
@@ -380,10 +389,17 @@ void _paintClassicBackground(
             0,
           ])
         : null;
+  final blurSigma = math.max(0.0, settings.blurRadius / 4);
+  final layerPaint = Paint()
+    ..imageFilter = blurSigma > 0
+        ? ui.ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma)
+        : null;
 
   canvas.save();
   canvas.clipRect(dstRect);
-  canvas.drawImageRect(image, srcRect, dstRect, paint);
+  canvas.saveLayer(dstRect, layerPaint);
+  canvas.drawImageRect(image, srcRect, dstRect, imagePaint);
+  canvas.restore();
   canvas.restore();
 
   if (settings.blurMode == BlurModeOption.dark) {
@@ -421,7 +437,7 @@ void _paintClassicForeground(
       ..color = Colors.black.withValues(alpha: 0.42)
       ..maskFilter = MaskFilter.blur(
         BlurStyle.normal,
-        settings.shadowSize.toDouble(),
+        _boxShadowBlurToSigma(settings.shadowSize.toDouble()),
       );
     if (settings.borderStyle == BorderStyleOption.rounded) {
       canvas.drawRRect(shape, shadowPaint);
@@ -1183,6 +1199,9 @@ Rect _coverSourceRect(
 
 Color _monoColor(MonoColor color) =>
     color == MonoColor.white ? Colors.white : Colors.black;
+
+double _boxShadowBlurToSigma(double blurRadius) =>
+    blurRadius > 0 ? blurRadius * 0.57735 + 0.5 : 0;
 
 Future<ui.Image> _decodeUiImage(Uint8List bytes) async {
   final codec = await ui.instantiateImageCodec(bytes);
