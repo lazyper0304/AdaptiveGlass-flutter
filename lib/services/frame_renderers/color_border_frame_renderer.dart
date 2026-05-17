@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
 import '../../models/processing_settings.dart';
@@ -28,6 +30,16 @@ class ColorBorderFrameRenderer {
     int? maxDimension,
     int jpegQuality = 95,
   }) async {
+    if (maxDimension == null) {
+      return _processGpuExport(
+        sourceBytes: sourceBytes,
+        settings: settings,
+        exif: exif,
+        outputFormat: outputFormat,
+        jpegQuality: jpegQuality,
+      );
+    }
+
     final rasterResult = await compute(_processRasterTask, <String, Object?>{
       'bytes': sourceBytes,
       'settings': settings.toJson(),
@@ -65,6 +77,59 @@ class ColorBorderFrameRenderer {
         Map<String, dynamic>.from(rasterResult['layout']! as Map),
       ),
       renderScale: (rasterResult['render_scale']! as num).toDouble(),
+    );
+  }
+
+  Future<ProcessingOutput> _processGpuExport({
+    required Uint8List sourceBytes,
+    required ProcessingSettings settings,
+    required ExifSnapshot exif,
+    required RasterOutputFormat outputFormat,
+    required int jpegQuality,
+  }) async {
+    final paletteFuture = compute(_extractPaletteTask, <String, Object?>{
+      'bytes': sourceBytes,
+      'count': 5,
+    });
+    final image = await _decodeUiImage(sourceBytes);
+    final paletteJson = await paletteFuture;
+    final palette = paletteJson
+        .map((item) => PaletteSwatch.fromJson(Map<String, dynamic>.from(item)))
+        .toList();
+
+    final metrics = calculateColorBorderLayoutMetrics(
+      sourceWidth: image.width.toDouble(),
+      sourceHeight: image.height.toDouble(),
+      contentScale: settings.contentScale,
+    );
+    final layoutInfo = LayoutInfo(
+      targetWidth: math.max(1, metrics.canvasWidth.round()),
+      targetHeight: math.max(1, metrics.canvasHeight.round()),
+      contentX: math.max(0, metrics.photoX.round()),
+      contentY: math.max(0, metrics.photoY.round()),
+      contentWidth: math.max(1, metrics.photoWidth.round()),
+      contentHeight: math.max(1, metrics.photoHeight.round()),
+    );
+
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    _paintColorBorderExport(canvas, image, metrics, palette);
+
+    final picture = recorder.endRecording();
+    final rendered = await picture.toImage(
+      layoutInfo.targetWidth,
+      layoutInfo.targetHeight,
+    );
+    final bytes = await _encodeUiImage(rendered, outputFormat, jpegQuality);
+
+    image.dispose();
+    rendered.dispose();
+    picture.dispose();
+
+    return ProcessingOutput(
+      imageBytes: bytes,
+      layoutInfo: layoutInfo,
+      exif: exif,
     );
   }
 }
@@ -275,9 +340,10 @@ img.Image _composeColorBorderImage({
   required img.Image foreground,
   required LayoutInfo layoutInfo,
 }) {
-  final palette = _extractPaletteSwatches(foreground, count: 5)
-      .map((item) => item.toImageColor())
-      .toList();
+  final palette = _extractPaletteSwatches(
+    foreground,
+    count: 5,
+  ).map((item) => item.toImageColor()).toList();
   final borderThickness = math.max(
     10,
     (math.min(layoutInfo.targetWidth, layoutInfo.targetHeight) * 0.022).round(),
@@ -343,10 +409,12 @@ void _paintPaletteRow(
   final usableWidth = canvas.width - sidePadding * 2;
   final itemWidth = usableWidth / palette.length;
   final labelWidth = math.max(circleRadius * 3, (itemWidth * 0.92).round());
-  final labelY = math.min(
-    innerBottom - _fontHeight(labelFont) - 10,
-    circleCenterY + circleRadius + math.max(10, circleRadius ~/ 2),
-  ).toInt();
+  final labelY = math
+      .min(
+        innerBottom - _fontHeight(labelFont) - 10,
+        circleCenterY + circleRadius + math.max(10, circleRadius ~/ 2),
+      )
+      .toInt();
 
   for (var index = 0; index < palette.length; index++) {
     final centerX = palette.length == 1
@@ -513,9 +581,10 @@ List<Map<String, int>> _extractPaletteTask(Map<String, Object?> input) {
   }
 
   final source = img.bakeOrientation(decoded).convert(numChannels: 4);
-  return _extractPaletteSwatches(source, count: count)
-      .map((item) => item.toJson())
-      .toList();
+  return _extractPaletteSwatches(
+    source,
+    count: count,
+  ).map((item) => item.toJson()).toList();
 }
 
 Uint8List _encodeRaster(img.Image image, String format, int jpegQuality) {
@@ -551,4 +620,124 @@ int _scalePositiveInt(int value, double scale) {
     return value;
   }
   return math.max(1, (value * scale).round());
+}
+
+void _paintColorBorderExport(
+  Canvas canvas,
+  ui.Image image,
+  ColorBorderLayoutMetrics metrics,
+  List<PaletteSwatch> palette,
+) {
+  final canvasRect = Rect.fromLTWH(
+    0,
+    0,
+    metrics.canvasWidth,
+    metrics.canvasHeight,
+  );
+  canvas.drawRect(canvasRect, Paint()..color = Colors.white);
+
+  final photoRect = Rect.fromLTWH(
+    metrics.photoX,
+    metrics.photoY,
+    metrics.photoWidth,
+    metrics.photoHeight,
+  );
+
+  final shadowPaint = Paint()
+    ..color = Colors.black.withValues(alpha: 0.15)
+    ..maskFilter = MaskFilter.blur(BlurStyle.normal, 22);
+  canvas.drawRect(photoRect.shift(const Offset(0, 8)), shadowPaint);
+  canvas.drawImageRect(
+    image,
+    Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+    photoRect,
+    Paint()..filterQuality = FilterQuality.high,
+  );
+
+  final swatches = palette.isEmpty
+      ? List<PaletteSwatch>.filled(
+          5,
+          const PaletteSwatch(red: 236, green: 226, blue: 214),
+        )
+      : palette;
+  final circleSize = math.min(metrics.labelWidth, metrics.circleRadius * 3.1);
+  final circleRadius = circleSize / 2;
+  final strokeWidth = math.max(4.0, circleSize * 0.08);
+  final labelFontSize = math.max(
+    14.0,
+    math.min(24.0, metrics.labelWidth * 0.18),
+  );
+
+  for (
+    var index = 0;
+    index < swatches.length && index < metrics.circleCenters.length;
+    index++
+  ) {
+    final center = Offset(metrics.circleCenters[index], metrics.circleCenterY);
+    canvas.drawCircle(
+      center,
+      circleRadius,
+      Paint()
+        ..color = swatches[index].toColor()
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawCircle(
+      center,
+      circleRadius - (strokeWidth / 2),
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth,
+    );
+
+    final labelPainter = TextPainter(
+      text: TextSpan(
+        text: swatches[index].hexCode,
+        style: TextStyle(
+          color: const Color(0xFF6D6259),
+          fontSize: labelFontSize,
+          fontWeight: FontWeight.w700,
+          height: 1.1,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      ellipsis: '',
+    )..layout(maxWidth: metrics.labelWidth);
+    labelPainter.paint(
+      canvas,
+      Offset(
+        center.dx - (labelPainter.width / 2),
+        center.dy + circleRadius + 10,
+      ),
+    );
+  }
+}
+
+Future<ui.Image> _decodeUiImage(Uint8List bytes) async {
+  final codec = await ui.instantiateImageCodec(bytes);
+  final frame = await codec.getNextFrame();
+  return frame.image;
+}
+
+Future<Uint8List> _encodeUiImage(
+  ui.Image image,
+  RasterOutputFormat outputFormat,
+  int jpegQuality,
+) async {
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  if (byteData == null) {
+    throw StateError('无法导出图像。');
+  }
+
+  final pngBytes = byteData.buffer.asUint8List();
+  if (outputFormat == RasterOutputFormat.jpeg) {
+    final decoded = img.decodeImage(pngBytes);
+    if (decoded == null) {
+      throw StateError('无法编码 JPG 输出。');
+    }
+    return img.encodeJpg(decoded, quality: jpegQuality);
+  }
+
+  return pngBytes;
 }

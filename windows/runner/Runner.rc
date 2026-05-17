@@ -1,4 +1,4 @@
-// Microsoft Visual C++ generated resource script.
+﻿// Microsoft Visual C++ generated resource script.
 //
 #pragma code_page(65001)
 #include "resource.h"
@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "自适应玻璃" "\0"
+            VALUE "FileDescription", "光影相框" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "自适应玻璃" "\0"
+            VALUE "InternalName", "光影相框" "\0"
             VALUE "LegalCopyright", "版权所有 (C) 2026 com.example。保留所有权利。" "\0"
             VALUE "OriginalFilename", "adaptive_glass_flutter.exe" "\0"
-            VALUE "ProductName", "自适应玻璃" "\0"
+            VALUE "ProductName", "光影相框" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
@@ -119,3 +119,4 @@ END
 
 /////////////////////////////////////////////////////////////////////////////
 #endif    // not APSTUDIO_INVOKED
+

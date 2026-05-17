@@ -17,6 +17,16 @@ class ClassicFrameRenderer {
     int? maxDimension,
     int jpegQuality = 95,
   }) async {
+    if (maxDimension == null) {
+      return _processGpuExport(
+        sourceBytes: sourceBytes,
+        settings: settings,
+        exif: exif,
+        outputFormat: outputFormat,
+        jpegQuality: jpegQuality,
+      );
+    }
+
     final rasterResult = await compute(_processRasterTask, <String, Object?>{
       'bytes': sourceBytes,
       'settings': settings.toJson(),
@@ -72,6 +82,46 @@ class ClassicFrameRenderer {
         Map<String, dynamic>.from(rasterResult['layout']! as Map),
       ),
       renderScale: (rasterResult['render_scale']! as num).toDouble(),
+    );
+  }
+
+  Future<ProcessingOutput> _processGpuExport({
+    required Uint8List sourceBytes,
+    required ProcessingSettings settings,
+    required ExifSnapshot exif,
+    required RasterOutputFormat outputFormat,
+    required int jpegQuality,
+  }) async {
+    final sourceImage = await _decodeUiImage(sourceBytes);
+    final layoutInfo = calculateClassicLayoutInfo(
+      sourceWidth: sourceImage.width,
+      sourceHeight: sourceImage.height,
+      settings: settings,
+    );
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+
+    _paintClassicBackground(canvas, sourceImage, layoutInfo, settings);
+    _paintClassicForeground(canvas, sourceImage, layoutInfo, settings);
+    if (settings.watermark.enabled) {
+      _paintClassicWatermark(canvas, settings.watermark, exif, layoutInfo);
+    }
+
+    final picture = recorder.endRecording();
+    final rendered = await picture.toImage(
+      layoutInfo.targetWidth,
+      layoutInfo.targetHeight,
+    );
+    final bytes = await _encodeUiImage(rendered, outputFormat, jpegQuality);
+
+    sourceImage.dispose();
+    rendered.dispose();
+    picture.dispose();
+
+    return ProcessingOutput(
+      imageBytes: bytes,
+      layoutInfo: layoutInfo,
+      exif: exif,
     );
   }
 }
@@ -278,6 +328,316 @@ img.Image _renderClassicImage({
   return background;
 }
 
+void _paintClassicBackground(
+  Canvas canvas,
+  ui.Image image,
+  LayoutInfo layoutInfo,
+  ProcessingSettings settings,
+) {
+  final dstRect = Rect.fromLTWH(
+    0,
+    0,
+    layoutInfo.targetWidth.toDouble(),
+    layoutInfo.targetHeight.toDouble(),
+  );
+  final srcRect = _coverSourceRect(
+    image.width.toDouble(),
+    image.height.toDouble(),
+    dstRect.width,
+    dstRect.height,
+  );
+  final brightnessFactor = math.max(0.0, 1.0 + (settings.blurBrightness / 100));
+
+  final paint = Paint()
+    ..filterQuality = FilterQuality.high
+    ..imageFilter = settings.blurRadius > 0
+        ? ui.ImageFilter.blur(
+            sigmaX: settings.blurRadius / 4,
+            sigmaY: settings.blurRadius / 4,
+          )
+        : null
+    ..colorFilter = (brightnessFactor - 1.0).abs() > 0.001
+        ? ui.ColorFilter.matrix(<double>[
+            brightnessFactor,
+            0,
+            0,
+            0,
+            0,
+            0,
+            brightnessFactor,
+            0,
+            0,
+            0,
+            0,
+            0,
+            brightnessFactor,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+          ])
+        : null;
+
+  canvas.save();
+  canvas.clipRect(dstRect);
+  canvas.drawImageRect(image, srcRect, dstRect, paint);
+  canvas.restore();
+
+  if (settings.blurMode == BlurModeOption.dark) {
+    canvas.drawRect(
+      dstRect,
+      Paint()..color = Colors.black.withValues(alpha: 100 / 255),
+    );
+  } else if (settings.blurMode == BlurModeOption.light) {
+    canvas.drawRect(
+      dstRect,
+      Paint()..color = Colors.white.withValues(alpha: 80 / 255),
+    );
+  }
+}
+
+void _paintClassicForeground(
+  Canvas canvas,
+  ui.Image image,
+  LayoutInfo layoutInfo,
+  ProcessingSettings settings,
+) {
+  final dstRect = Rect.fromLTWH(
+    layoutInfo.contentX.toDouble(),
+    layoutInfo.contentY.toDouble(),
+    layoutInfo.contentWidth.toDouble(),
+    layoutInfo.contentHeight.toDouble(),
+  );
+  final radius = settings.borderStyle == BorderStyleOption.rounded
+      ? Radius.circular(settings.cornerRadius.toDouble())
+      : Radius.zero;
+  final shape = RRect.fromRectAndRadius(dstRect, radius);
+
+  if (settings.shadowSize > 0) {
+    final shadowPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.42)
+      ..maskFilter = MaskFilter.blur(
+        BlurStyle.normal,
+        settings.shadowSize.toDouble(),
+      );
+    if (settings.borderStyle == BorderStyleOption.rounded) {
+      canvas.drawRRect(shape, shadowPaint);
+    } else {
+      canvas.drawRect(dstRect, shadowPaint);
+    }
+  }
+
+  final imagePaint = Paint()..filterQuality = FilterQuality.high;
+  if (settings.borderStyle == BorderStyleOption.rounded) {
+    canvas.save();
+    canvas.clipRRect(shape);
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      dstRect,
+      imagePaint,
+    );
+    canvas.restore();
+  } else {
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+      dstRect,
+      imagePaint,
+    );
+  }
+
+  if (settings.borderStyle != BorderStyleOption.none &&
+      settings.borderWidth > 0) {
+    final borderPaint = Paint()
+      ..color = _monoColor(settings.borderColor)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = settings.borderWidth.toDouble();
+    if (settings.borderStyle == BorderStyleOption.rounded) {
+      canvas.drawRRect(shape.deflate(settings.borderWidth / 2), borderPaint);
+    } else {
+      canvas.drawRect(dstRect.deflate(settings.borderWidth / 2), borderPaint);
+    }
+  }
+}
+
+void _paintClassicWatermark(
+  Canvas canvas,
+  WatermarkSettings settings,
+  ExifSnapshot exif,
+  LayoutInfo layoutInfo,
+) {
+  final templateText =
+      settings.text.contains('{') && settings.text.contains('}')
+      ? _formatTemplate(settings.text, exif)
+      : settings.text;
+
+  final exifModel = exif.model.isNotEmpty ? exif.model : exif.make;
+  final infoParts = <String>[
+    if (exif.iso.isNotEmpty) 'ISO${exif.iso}',
+    if (exif.fNumber.isNotEmpty) 'f/${exif.fNumber}',
+    if (exif.exposureTime.isNotEmpty) '${exif.exposureTime}s',
+    if (exif.focalLength.isNotEmpty) '${exif.focalLength}mm',
+  ];
+  final exifInfo = infoParts.join('  ');
+
+  String modelText = '';
+  String infoText = '';
+
+  switch (settings.textMode) {
+    case WatermarkModeOption.replace:
+      modelText = templateText.isNotEmpty ? templateText : '自定义文本';
+      break;
+    case WatermarkModeOption.fallback:
+      if (exifModel.isNotEmpty) {
+        modelText = exifModel;
+        infoText = exifInfo;
+      } else {
+        modelText = templateText.isNotEmpty ? templateText : '无 EXIF 信息';
+      }
+      break;
+    case WatermarkModeOption.append:
+      if (exifModel.isNotEmpty) {
+        modelText = exifModel;
+        infoText = exifInfo;
+        if (templateText.isNotEmpty) {
+          infoText = infoText.isNotEmpty
+              ? '$infoText  |  $templateText'
+              : templateText;
+        }
+      } else {
+        modelText = templateText;
+      }
+      break;
+  }
+
+  if (modelText.isEmpty && infoText.isEmpty) {
+    return;
+  }
+
+  final borderTop = layoutInfo.contentY.toDouble();
+  final borderBottom =
+      (layoutInfo.targetHeight -
+              (layoutInfo.contentY + layoutInfo.contentHeight))
+          .toDouble();
+  final borderLeft = layoutInfo.contentX.toDouble();
+  final borderRight =
+      (layoutInfo.targetWidth - (layoutInfo.contentX + layoutInfo.contentWidth))
+          .toDouble();
+
+  var baseFontSize = settings.fontSize.toDouble();
+  if (settings.autoSize) {
+    final isVertical =
+        settings.position.storageValue.contains('top') ||
+        settings.position.storageValue.contains('bottom');
+    if (settings.position == WatermarkPosition.manual) {
+      baseFontSize = layoutInfo.targetWidth * 0.03;
+    } else if (isVertical) {
+      final refBorder = math.max(borderTop, borderBottom);
+      baseFontSize = refBorder > 20
+          ? refBorder * 0.35
+          : layoutInfo.targetWidth * 0.03;
+    } else {
+      final refBorder = math.max(borderLeft, borderRight);
+      if (settings.position.storageValue.contains('left') ||
+          settings.position.storageValue.contains('right')) {
+        baseFontSize = refBorder > 20
+            ? math.min(refBorder * 0.15, layoutInfo.targetHeight * 0.05)
+            : layoutInfo.targetWidth * 0.03;
+      } else {
+        baseFontSize = layoutInfo.targetWidth * 0.03;
+      }
+    }
+    baseFontSize = math.max(12, baseFontSize);
+  }
+
+  baseFontSize = math.max(10, baseFontSize * settings.sizeScale);
+  final infoFontSize = math.max(10.0, baseFontSize * 0.7);
+  final textAlpha = settings.opacity / 100;
+  final shadowAlpha = 0.5 * textAlpha;
+  final textColor = settings.textColor == MonoColor.white
+      ? Colors.white.withValues(alpha: textAlpha)
+      : Colors.black.withValues(alpha: textAlpha);
+  final shadowColor = settings.textColor == MonoColor.white
+      ? Colors.black.withValues(alpha: shadowAlpha)
+      : Colors.white.withValues(alpha: shadowAlpha);
+  final fontFamily = settings.fontFamily == WatermarkFontFamily.smileySans
+      ? 'SmileySans'
+      : null;
+
+  final modelPainter = _buildTextPainter(
+    modelText,
+    TextStyle(
+      color: textColor,
+      fontSize: baseFontSize,
+      fontWeight: FontWeight.w700,
+      fontFamily: fontFamily,
+    ),
+  );
+  final infoPainter = _buildTextPainter(
+    infoText,
+    TextStyle(
+      color: textColor,
+      fontSize: infoFontSize,
+      fontWeight: FontWeight.w500,
+      fontFamily: fontFamily,
+    ),
+  );
+  final modelShadowPainter = _buildTextPainter(
+    modelText,
+    TextStyle(
+      color: shadowColor,
+      fontSize: baseFontSize,
+      fontWeight: FontWeight.w700,
+      fontFamily: fontFamily,
+    ),
+  );
+  final infoShadowPainter = _buildTextPainter(
+    infoText,
+    TextStyle(
+      color: shadowColor,
+      fontSize: infoFontSize,
+      fontWeight: FontWeight.w500,
+      fontFamily: fontFamily,
+    ),
+  );
+
+  final gap = (modelText.isNotEmpty && infoText.isNotEmpty)
+      ? baseFontSize * 0.8
+      : 0.0;
+  final totalWidth = modelPainter.width + gap + infoPainter.width;
+  final maxHeight = math.max(modelPainter.height, infoPainter.height);
+
+  final position = calculateClassicWatermarkPosition(
+    settings.position,
+    layoutInfo,
+    borderTop,
+    borderBottom,
+    borderLeft,
+    borderRight,
+    totalWidth,
+    maxHeight,
+  );
+  final x = position.dx + settings.customX.toDouble();
+  final y = position.dy + settings.customY.toDouble();
+
+  if (modelText.isNotEmpty) {
+    final modelY = y + (maxHeight - modelPainter.height);
+    modelShadowPainter.paint(canvas, Offset(x + 1, modelY + 1));
+    modelPainter.paint(canvas, Offset(x, modelY));
+  }
+
+  if (infoText.isNotEmpty) {
+    final infoX = x + modelPainter.width + gap;
+    final infoY = y + (maxHeight - infoPainter.height);
+    infoShadowPainter.paint(canvas, Offset(infoX + 1, infoY + 1));
+    infoPainter.paint(canvas, Offset(infoX, infoY));
+  }
+}
+
 Future<Uint8List> _applyWatermark(
   Uint8List rasterBytes,
   WatermarkSettings settings,
@@ -347,8 +707,7 @@ Future<Uint8List> _applyWatermark(
           .toDouble();
   final borderLeft = layoutInfo.contentX.toDouble();
   final borderRight =
-      (layoutInfo.targetWidth -
-              (layoutInfo.contentX + layoutInfo.contentWidth))
+      (layoutInfo.targetWidth - (layoutInfo.contentX + layoutInfo.contentWidth))
           .toDouble();
 
   var baseFontSize = settings.fontSize.toDouble();
@@ -804,8 +1163,51 @@ TextPainter _buildTextPainter(String text, TextStyle style) {
   return painter;
 }
 
+Rect _coverSourceRect(
+  double sourceWidth,
+  double sourceHeight,
+  double targetWidth,
+  double targetHeight,
+) {
+  final sourceAspect = sourceWidth / sourceHeight;
+  final targetAspect = targetWidth / targetHeight;
+
+  if (sourceAspect > targetAspect) {
+    final width = sourceHeight * targetAspect;
+    return Rect.fromLTWH((sourceWidth - width) / 2, 0, width, sourceHeight);
+  }
+
+  final height = sourceWidth / targetAspect;
+  return Rect.fromLTWH(0, (sourceHeight - height) / 2, sourceWidth, height);
+}
+
+Color _monoColor(MonoColor color) =>
+    color == MonoColor.white ? Colors.white : Colors.black;
+
 Future<ui.Image> _decodeUiImage(Uint8List bytes) async {
   final codec = await ui.instantiateImageCodec(bytes);
   final frame = await codec.getNextFrame();
   return frame.image;
+}
+
+Future<Uint8List> _encodeUiImage(
+  ui.Image image,
+  RasterOutputFormat outputFormat,
+  int jpegQuality,
+) async {
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  if (byteData == null) {
+    throw StateError('无法导出图像。');
+  }
+
+  final pngBytes = byteData.buffer.asUint8List();
+  if (outputFormat == RasterOutputFormat.jpeg) {
+    final decoded = img.decodeImage(pngBytes);
+    if (decoded == null) {
+      throw StateError('无法编码 JPG 输出。');
+    }
+    return img.encodeJpg(decoded, quality: jpegQuality);
+  }
+
+  return pngBytes;
 }

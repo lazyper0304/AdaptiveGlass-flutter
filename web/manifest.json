@@ -1,11 +1,11 @@
-{
-    "name": "自适应玻璃",
-    "short_name": "自适应玻璃",
+﻿{
+    "name": "光影相框",
+    "short_name": "光影相框",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "自适应玻璃图片处理工具。",
+    "description": "光影相框图片处理工具。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
@@ -33,3 +33,4 @@
         }
     ]
 }
+
