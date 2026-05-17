@@ -67,9 +67,8 @@ class EditorSettingsPanel extends StatelessWidget {
         value: settings.contentScale.toDouble(),
         min: 50,
         max: 100,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(contentScale: value.round()),
-        ),
+        onChanged: (value) =>
+            onSettingsChanged(settings.copyWith(contentScale: value.round())),
       ),
       _SectionTitle(text: '背景'),
       _SliderRow(
@@ -77,18 +76,16 @@ class EditorSettingsPanel extends StatelessWidget {
         value: settings.blurRadius.toDouble(),
         min: 0,
         max: 100,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(blurRadius: value.round()),
-        ),
+        onChanged: (value) =>
+            onSettingsChanged(settings.copyWith(blurRadius: value.round())),
       ),
       _SliderRow(
         label: '背景亮度 ${settings.blurBrightness}',
         value: settings.blurBrightness.toDouble(),
         min: -100,
         max: 100,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(blurBrightness: value.round()),
-        ),
+        onChanged: (value) =>
+            onSettingsChanged(settings.copyWith(blurBrightness: value.round())),
       ),
       _EnumRow<BlurModeOption>(
         value: settings.blurMode,
@@ -117,27 +114,24 @@ class EditorSettingsPanel extends StatelessWidget {
         value: settings.borderWidth.toDouble(),
         min: 0,
         max: 50,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(borderWidth: value.round()),
-        ),
+        onChanged: (value) =>
+            onSettingsChanged(settings.copyWith(borderWidth: value.round())),
       ),
       _SliderRow(
         label: '圆角半径 ${settings.cornerRadius}',
         value: settings.cornerRadius.toDouble(),
         min: 0,
         max: 100,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(cornerRadius: value.round()),
-        ),
+        onChanged: (value) =>
+            onSettingsChanged(settings.copyWith(cornerRadius: value.round())),
       ),
       _SliderRow(
         label: '阴影强度 ${settings.shadowSize}',
         value: settings.shadowSize.toDouble(),
         min: 0,
         max: 50,
-        onChanged: (value) => onSettingsChanged(
-          settings.copyWith(shadowSize: value.round()),
-        ),
+        onChanged: (value) =>
+            onSettingsChanged(settings.copyWith(shadowSize: value.round())),
       ),
       _EnumRow<MonoColor>(
         value: settings.borderColor,
@@ -175,8 +169,12 @@ class EditorSettingsPanel extends StatelessWidget {
         ),
       ),
       _EnumRow<WatermarkPosition>(
-        value: settings.watermark.position,
-        values: WatermarkPosition.values,
+        value: settings.watermark.position == WatermarkPosition.manual
+            ? WatermarkPosition.bottomCenter
+            : settings.watermark.position,
+        values: WatermarkPosition.values
+            .where((item) => item != WatermarkPosition.manual)
+            .toList(),
         labelBuilder: (item) => item.label,
         onChanged: (value) => onSettingsChanged(
           settings.copyWith(

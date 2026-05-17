@@ -384,7 +384,18 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     FrameTemplate template,
     ProcessingSettings settings,
   ) {
-    final normalized = settings.copyWith(template: template);
+    final normalizedWatermark =
+        settings.watermark.position == WatermarkPosition.manual
+        ? settings.watermark.copyWith(
+            position: WatermarkPosition.bottomCenter,
+            customX: 0,
+            customY: 0,
+          )
+        : settings.watermark;
+    final normalized = settings.copyWith(
+      template: template,
+      watermark: normalizedWatermark,
+    );
     switch (template) {
       case FrameTemplate.classic:
         return normalized;
