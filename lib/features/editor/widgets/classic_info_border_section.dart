@@ -239,24 +239,38 @@ class _SwitchRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
 
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: colors.onSurface.withValues(alpha: 0.88),
-              fontWeight: FontWeight.w700,
-            ),
+    return Semantics(
+      button: true,
+      toggled: value,
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onChanged(!value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: colors.onSurface.withValues(alpha: 0.88),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              AbsorbPointer(
+                child: GlassSwitch(
+                  value: value,
+                  onChanged: onChanged,
+                  activeColor: _editorAccentColor(context),
+                  quality: GlassQuality.standard,
+                ),
+              ),
+            ],
           ),
         ),
-        GlassSwitch(
-          value: value,
-          onChanged: onChanged,
-          activeColor: _editorAccentColor(context),
-          quality: GlassQuality.standard,
-        ),
-      ],
+      ),
     );
   }
 }
