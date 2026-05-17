@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
+import '../../models/classic_info_border_settings.dart';
 import '../../models/frame_template.dart';
 import '../../models/processing_settings.dart';
 import '../../services/adaptive_glass_processor.dart';
@@ -55,7 +56,9 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
   bool get hasSource => _sourceBytes != null;
   Uint8List? get sourceBytes => _sourceBytes;
   Uint8List? get sourceBytesThumb => _sourceBytesThumb;
-  bool get _usesRealtimePreviewStatus => _template == FrameTemplate.classic;
+  bool get _usesRealtimePreviewStatus =>
+      _template == FrameTemplate.classic ||
+      _template == FrameTemplate.watermarkBorder;
 
   void setStatus(String status, {bool? processing}) {
     _status = status;
@@ -272,7 +275,8 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
           return;
         }
         _sourceExif = exif;
-        if (_settings.watermark.enabled) {
+        if (_settings.watermark.enabled ||
+            _settings.classicInfoBorder.enabled) {
           notifyListeners();
         }
       }),
@@ -364,6 +368,14 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     switch (template) {
       case FrameTemplate.classic:
         return const ProcessingSettings();
+      case FrameTemplate.watermarkBorder:
+        return const ProcessingSettings(
+          template: FrameTemplate.watermarkBorder,
+          blurRadius: 0,
+          blurBrightness: 0,
+          watermark: WatermarkSettings(enabled: false),
+          classicInfoBorder: ClassicInfoBorderSettings(enabled: true),
+        );
       case FrameTemplate.colorBorder:
         return const ProcessingSettings(
           template: FrameTemplate.colorBorder,
@@ -398,7 +410,21 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     );
     switch (template) {
       case FrameTemplate.classic:
-        return normalized;
+        return normalized.copyWith(
+          classicInfoBorder: normalized.classicInfoBorder.copyWith(
+            enabled: false,
+          ),
+        );
+      case FrameTemplate.watermarkBorder:
+        return normalized.copyWith(
+          blurMode: BlurModeOption.standard,
+          blurRadius: 0,
+          blurBrightness: 0,
+          watermark: normalized.watermark.copyWith(enabled: false),
+          classicInfoBorder: normalized.classicInfoBorder.copyWith(
+            enabled: true,
+          ),
+        );
       case FrameTemplate.colorBorder:
         return normalized.copyWith(
           targetRatio: RatioPreset.original,

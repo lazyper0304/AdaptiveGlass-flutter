@@ -18,13 +18,19 @@ const homeTemplates = [
   TemplateData(
     template: FrameTemplate.classic,
     title: '经典模式',
-    subtitle: '保留原有玻璃感边框和实时调节能力',
+    subtitle: '保留原有玻璃感边框与实时调节能力',
     variant: 3,
   ),
   TemplateData(
     template: FrameTemplate.colorBorder,
     title: '色彩边框',
-    subtitle: '自动加白边，并从图片提取五种颜色生成色卡',
+    subtitle: '自动加白边，并从图片提取五种主色生成色卡',
     variant: 0,
+  ),
+  TemplateData(
+    template: FrameTemplate.watermarkBorder,
+    title: '水印边框',
+    subtitle: '底部白色信息边框，支持照片参数与厂商 Logo',
+    variant: 5,
   ),
 ];

@@ -6,11 +6,7 @@ import '../models/home_template_data.dart';
 import '../painters/home_painters.dart';
 
 class TemplateTile extends StatelessWidget {
-  const TemplateTile({
-    super.key,
-    required this.data,
-    required this.onTap,
-  });
+  const TemplateTile({super.key, required this.data, required this.onTap});
 
   final TemplateData data;
   final VoidCallback onTap;
@@ -27,9 +23,7 @@ class TemplateTile extends StatelessWidget {
       settings: LiquidGlassSettings(
         blur: 10,
         thickness: isDark ? 28 : 24,
-        glassColor: isDark
-            ? const Color(0x421C2026)
-            : const Color(0xB5FFFFFF),
+        glassColor: isDark ? const Color(0x421C2026) : const Color(0xB5FFFFFF),
       ),
       child: InkWell(
         onTap: onTap,
@@ -43,9 +37,12 @@ class TemplateTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(18),
                 child: switch (data.template) {
                   FrameTemplate.classic => _ClassicTemplatePreview(
-                      variant: data.variant,
-                    ),
-                  FrameTemplate.colorBorder => const _ColorBorderTemplatePreview(),
+                    variant: data.variant,
+                  ),
+                  FrameTemplate.colorBorder =>
+                    const _ColorBorderTemplatePreview(),
+                  FrameTemplate.watermarkBorder =>
+                    const _WatermarkBorderTemplatePreview(),
                 },
               ),
             ),
@@ -181,14 +178,58 @@ class _ColorBorderTemplatePreview extends StatelessWidget {
       ),
     );
   }
+}
 
+class _WatermarkBorderTemplatePreview extends StatelessWidget {
+  const _WatermarkBorderTemplatePreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF0E8DE), Color(0xFFF7F8FB)],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: Colors.white,
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x14000000),
+                blurRadius: 12,
+                offset: Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: CustomPaint(painter: PhotoScenePainter(variant: 5)),
+                ),
+              ),
+              const _WatermarkFooterPreview(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _PalettePreviewDot extends StatelessWidget {
-  const _PalettePreviewDot({
-    required this.color,
-    required this.label,
-  });
+  const _PalettePreviewDot({required this.color, required this.label});
 
   final Color color;
   final String label;
@@ -259,6 +300,64 @@ class _CameraMetaStrip extends StatelessWidget {
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WatermarkFooterPreview extends StatelessWidget {
+  const _WatermarkFooterPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 46,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: Color(0x14000000))),
+      ),
+      child: const Row(
+        children: [
+          Text(
+            'SONY',
+            style: TextStyle(
+              color: Colors.black,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.4,
+            ),
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Sony A7R V',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Color(0xFF111111),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'ISO 200   f/2.8   1/125s   35mm',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Color(0xFF6A6A6A),
+                    fontSize: 8,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

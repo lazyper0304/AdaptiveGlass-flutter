@@ -39,6 +39,8 @@ class LayoutInfo {
     required this.contentY,
     required this.contentWidth,
     required this.contentHeight,
+    this.infoPanelTop = 0,
+    this.infoPanelHeight = 0,
   });
 
   final int targetWidth;
@@ -47,6 +49,8 @@ class LayoutInfo {
   final int contentY;
   final int contentWidth;
   final int contentHeight;
+  final int infoPanelTop;
+  final int infoPanelHeight;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -56,6 +60,8 @@ class LayoutInfo {
       'content_y': contentY,
       'content_width': contentWidth,
       'content_height': contentHeight,
+      'info_panel_top': infoPanelTop,
+      'info_panel_height': infoPanelHeight,
     };
   }
 
@@ -67,6 +73,8 @@ class LayoutInfo {
       contentY: (json['content_y'] as num).round(),
       contentWidth: (json['content_width'] as num).round(),
       contentHeight: (json['content_height'] as num).round(),
+      infoPanelTop: (json['info_panel_top'] as num?)?.round() ?? 0,
+      infoPanelHeight: (json['info_panel_height'] as num?)?.round() ?? 0,
     );
   }
 }
@@ -100,8 +108,7 @@ class PaletteSwatch {
   final int green;
   final int blue;
 
-  String get hexCode =>
-      '#${_hex(red)}${_hex(green)}${_hex(blue)}';
+  String get hexCode => '#${_hex(red)}${_hex(green)}${_hex(blue)}';
 
   Color toColor() => Color.fromARGB(255, red, green, blue);
 
@@ -119,7 +126,8 @@ class PaletteSwatch {
     );
   }
 
-  static String _hex(int value) => value.toRadixString(16).padLeft(2, '0').toUpperCase();
+  static String _hex(int value) =>
+      value.toRadixString(16).padLeft(2, '0').toUpperCase();
 }
 
 enum RasterOutputFormat { png, jpeg }

@@ -4,11 +4,13 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../../models/frame_template.dart';
 import '../../../models/processing_settings.dart';
 import '../models/export_format_option.dart';
+import 'classic_info_border_section.dart';
 
 enum _ClassicSettingsCategory {
   canvas('画布'),
   background('背景'),
   frame('边框'),
+  infoBorder('信息边框'),
   watermark('水印'),
   export('导出');
 
@@ -64,6 +66,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: switch (widget.template) {
             FrameTemplate.classic => _buildClassicSections(context),
+            FrameTemplate.watermarkBorder => _buildClassicSections(context),
             FrameTemplate.colorBorder => _buildColorBorderSections(context),
           },
         ),
@@ -71,30 +74,54 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
     );
   }
 
+  List<_ClassicSettingsCategory> _categoriesForTemplate() {
+    return switch (widget.template) {
+      FrameTemplate.classic => const [
+        _ClassicSettingsCategory.canvas,
+        _ClassicSettingsCategory.background,
+        _ClassicSettingsCategory.frame,
+        _ClassicSettingsCategory.watermark,
+        _ClassicSettingsCategory.export,
+      ],
+      FrameTemplate.watermarkBorder => const [
+        _ClassicSettingsCategory.canvas,
+        _ClassicSettingsCategory.frame,
+        _ClassicSettingsCategory.infoBorder,
+        _ClassicSettingsCategory.export,
+      ],
+      FrameTemplate.colorBorder => const [_ClassicSettingsCategory.export],
+    };
+  }
+
   List<Widget> _buildClassicSections(BuildContext context) {
+    final categories = _categoriesForTemplate();
+    final activeCategory = categories.contains(_category)
+        ? _category
+        : categories.first;
+
     return [
-      _SectionTitle(text: '参数分类'),
+      const _SectionTitle(text: '参数分类'),
       SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         child: Row(
-          children: _ClassicSettingsCategory.values
+          children: categories
               .map(
                 (item) => Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: GlassChip(
                     label: item.label,
-                    selected: _category == item,
+                    selected: activeCategory == item,
                     selectedColor: _editorAccentColor(
                       context,
                     ).withValues(alpha: 0.22),
                     labelStyle: TextStyle(
-                      color: _category == item
+                      color: activeCategory == item
                           ? _editorAccentColor(context)
                           : Theme.of(
                               context,
                             ).colorScheme.onSurface.withValues(alpha: 0.82),
-                      fontWeight: _category == item
+                      fontWeight: activeCategory == item
                           ? FontWeight.w800
                           : FontWeight.w600,
                     ),
@@ -113,22 +140,22 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         switchInCurve: Curves.easeOutCubic,
         switchOutCurve: Curves.easeInCubic,
         child: KeyedSubtree(
-          key: ValueKey(_category),
+          key: ValueKey(activeCategory),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: _classicCategoryContent(),
+            children: _classicCategoryContent(activeCategory),
           ),
         ),
       ),
     ];
   }
 
-  List<Widget> _classicCategoryContent() {
+  List<Widget> _classicCategoryContent(_ClassicSettingsCategory category) {
     final settings = widget.settings;
 
-    return switch (_category) {
+    return switch (category) {
       _ClassicSettingsCategory.canvas => [
-        _SectionTitle(text: '画布比例'),
+        const _SectionTitle(text: '画布比例'),
         _EnumRow<RatioPreset>(
           value: settings.targetRatio,
           values: RatioPreset.values,
@@ -147,7 +174,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         ),
       ],
       _ClassicSettingsCategory.background => [
-        _SectionTitle(text: '背景'),
+        const _SectionTitle(text: '背景'),
         _SliderRow(
           label: '模糊半径 ${settings.blurRadius}',
           value: settings.blurRadius.toDouble(),
@@ -175,7 +202,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         ),
       ],
       _ClassicSettingsCategory.frame => [
-        _SectionTitle(text: '边框'),
+        const _SectionTitle(text: '边框'),
         _EnumRow<BorderStyleOption>(
           value: settings.borderStyle,
           values: BorderStyleOption.values,
@@ -218,8 +245,17 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
               widget.onSettingsChanged(settings.copyWith(borderColor: value)),
         ),
       ],
+      _ClassicSettingsCategory.infoBorder => [
+        const _SectionTitle(text: '底部信息边框'),
+        ClassicInfoBorderSection(
+          settings: settings.classicInfoBorder,
+          onChanged: (value) => widget.onSettingsChanged(
+            settings.copyWith(classicInfoBorder: value),
+          ),
+        ),
+      ],
       _ClassicSettingsCategory.watermark => [
-        _SectionTitle(text: '水印'),
+        const _SectionTitle(text: '文字水印'),
         _SwitchRow(
           label: '启用水印',
           value: settings.watermark.enabled,
@@ -232,7 +268,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         const SizedBox(height: 12),
         GlassTextField(
           controller: widget.watermarkController,
-          placeholder: '自定义文字',
+          placeholder: '自定义水印文字',
           prefixIcon: const Icon(Icons.text_fields_rounded, size: 20),
           quality: GlassQuality.standard,
         ),
@@ -305,7 +341,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         ),
       ],
       _ClassicSettingsCategory.export => [
-        _SectionTitle(text: '导出'),
+        const _SectionTitle(text: '导出'),
         _EnumRow<ExportFormatOption>(
           value: widget.exportFormat,
           values: ExportFormatOption.values,
@@ -320,7 +356,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
     final colors = Theme.of(context).colorScheme;
 
     return [
-      _SectionTitle(text: '模式说明'),
+      const _SectionTitle(text: '模式说明'),
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -329,7 +365,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
           border: Border.all(color: colors.outline.withValues(alpha: 0.18)),
         ),
         child: Text(
-          '该模式会自动为导入图片生成白色留边，并从画面中提取 5 种主色，展示为底部圆点和 RGB 编号。',
+          '该模式会自动为导入图片生成白色边框，并从画面中提取五种主色，以下方色点和 RGB 数值的形式展示。',
           style: TextStyle(
             color: colors.onSurface.withValues(alpha: 0.76),
             height: 1.5,
@@ -337,7 +373,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
           ),
         ),
       ),
-      _SectionTitle(text: '导出'),
+      const _SectionTitle(text: '导出'),
       _EnumRow<ExportFormatOption>(
         value: widget.exportFormat,
         values: ExportFormatOption.values,

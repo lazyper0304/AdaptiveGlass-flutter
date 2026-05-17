@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
+import '../../models/frame_template.dart';
 import '../../models/processing_settings.dart';
 import '../frame_processing_models.dart';
+import 'classic_info_border_support.dart';
 
 class ClassicFrameRenderer {
   Future<ProcessingOutput> process({
@@ -44,12 +46,12 @@ class ClassicFrameRenderer {
         ? settings.watermark
         : _scaleWatermarkSettings(settings.watermark, renderScale);
 
-    final outputBytes = settings.watermark.enabled
-        ? await _applyWatermark(
-            rasterBytes,
-            watermarkSettings,
-            exif,
-            layoutInfo,
+    final outputBytes = _needsClassicDecorationPass(settings)
+        ? await _applyClassicDecorations(
+            rasterBytes: rasterBytes,
+            settings: settings.copyWith(watermark: watermarkSettings),
+            exif: exif,
+            layoutInfo: layoutInfo,
             outputFormat: outputFormat,
             jpegQuality: jpegQuality,
           )
@@ -73,15 +75,32 @@ class ClassicFrameRenderer {
           'settings': settings.toJson(),
           'max_dimension': maxDimension,
         });
+    final layoutInfo = LayoutInfo.fromJson(
+      Map<String, dynamic>.from(rasterResult['layout']! as Map),
+    );
+    final renderScale = (rasterResult['render_scale']! as num).toDouble();
+    final scaledSettings = renderScale >= 0.999
+        ? settings
+        : _scaleSettingsForPreview(settings, renderScale).copyWith(
+            watermark: _scaleWatermarkSettings(settings.watermark, renderScale),
+          );
+    final compositeBytes = _needsClassicDecorationPass(scaledSettings)
+        ? await _applyClassicDecorations(
+            rasterBytes: rasterResult['composite_bytes']! as Uint8List,
+            settings: scaledSettings,
+            exif: const ExifSnapshot(),
+            layoutInfo: layoutInfo,
+            outputFormat: RasterOutputFormat.jpeg,
+            jpegQuality: 88,
+          )
+        : rasterResult['composite_bytes']! as Uint8List;
 
     return PreviewCompositeOutput(
-      compositeBytes: rasterResult['composite_bytes']! as Uint8List,
+      compositeBytes: compositeBytes,
       backgroundBytes: rasterResult['background_bytes']! as Uint8List,
       foregroundBytes: rasterResult['foreground_bytes']! as Uint8List,
-      layoutInfo: LayoutInfo.fromJson(
-        Map<String, dynamic>.from(rasterResult['layout']! as Map),
-      ),
-      renderScale: (rasterResult['render_scale']! as num).toDouble(),
+      layoutInfo: layoutInfo,
+      renderScale: renderScale,
     );
   }
 
@@ -93,6 +112,11 @@ class ClassicFrameRenderer {
     required int jpegQuality,
   }) async {
     final sourceImage = await _decodeUiImage(sourceBytes);
+    final classicInfoBorderLogo = settings.classicInfoBorder.enabled
+        ? await loadClassicInfoBorderLogo(
+            resolveClassicInfoBorderLogoAsset(settings.classicInfoBorder, exif),
+          )
+        : null;
     final layoutInfo = calculateClassicLayoutInfo(
       sourceWidth: sourceImage.width,
       sourceHeight: sourceImage.height,
@@ -106,6 +130,7 @@ class ClassicFrameRenderer {
       layoutInfo: layoutInfo,
       settings: settings,
       exif: exif,
+      classicInfoBorderLogo: classicInfoBorderLogo,
     );
 
     final picture = recorder.endRecording();
@@ -118,6 +143,7 @@ class ClassicFrameRenderer {
     sourceImage.dispose();
     rendered.dispose();
     picture.dispose();
+    classicInfoBorderLogo?.dispose();
 
     return ProcessingOutput(
       imageBytes: bytes,
@@ -133,9 +159,17 @@ void paintClassicFrameToCanvas({
   required LayoutInfo layoutInfo,
   required ProcessingSettings settings,
   required ExifSnapshot exif,
+  ClassicInfoBorderLogo? classicInfoBorderLogo,
 }) {
   _paintClassicBackground(canvas, image, layoutInfo, settings);
   _paintClassicForeground(canvas, image, layoutInfo, settings);
+  paintClassicInfoBorder(
+    canvas: canvas,
+    layoutInfo: layoutInfo,
+    settings: settings.classicInfoBorder,
+    exif: exif,
+    logo: classicInfoBorderLogo,
+  );
   if (settings.watermark.enabled) {
     _paintClassicWatermark(canvas, settings.watermark, exif, layoutInfo);
   }
@@ -153,8 +187,19 @@ LayoutInfo calculateClassicLayoutInfo({
   );
   final targetWidth = targetSize.$1;
   final targetHeight = targetSize.$2;
+  final infoPanelHeight = settings.classicInfoBorder.enabled
+      ? calculateClassicInfoBorderMetrics(
+          targetWidth: targetWidth,
+          targetHeight: targetHeight,
+          settings: settings.classicInfoBorder,
+        ).footerHeight.round()
+      : 0;
+  final availableContentHeight = math.max(1, targetHeight - infoPanelHeight);
   final fitScale =
-      math.min(targetWidth / sourceWidth, targetHeight / sourceHeight) *
+      math.min(
+        targetWidth / sourceWidth,
+        availableContentHeight / sourceHeight,
+      ) *
       (settings.contentScale / 100);
   final contentWidth = math.max(1, (sourceWidth * fitScale).round());
   final contentHeight = math.max(1, (sourceHeight * fitScale).round());
@@ -163,9 +208,11 @@ LayoutInfo calculateClassicLayoutInfo({
     targetWidth: targetWidth,
     targetHeight: targetHeight,
     contentX: (targetWidth - contentWidth) ~/ 2,
-    contentY: (targetHeight - contentHeight) ~/ 2,
+    contentY: math.max(0, (availableContentHeight - contentHeight) ~/ 2),
     contentWidth: contentWidth,
     contentHeight: contentHeight,
+    infoPanelTop: targetHeight - infoPanelHeight,
+    infoPanelHeight: infoPanelHeight,
   );
 }
 
@@ -355,6 +402,10 @@ void _paintClassicBackground(
     layoutInfo.targetWidth.toDouble(),
     layoutInfo.targetHeight.toDouble(),
   );
+  if (_usesPlainBackgroundForWatermarkBorder(settings)) {
+    canvas.drawRect(dstRect, Paint()..color = Colors.white);
+    return;
+  }
   final srcRect = _coverSourceRect(
     image.width.toDouble(),
     image.height.toDouble(),
@@ -411,6 +462,18 @@ void _paintClassicBackground(
     canvas.drawRect(
       dstRect,
       Paint()..color = Colors.white.withValues(alpha: 80 / 255),
+    );
+  }
+
+  if (settings.classicInfoBorder.enabled && layoutInfo.infoPanelHeight > 0) {
+    canvas.drawRect(
+      Rect.fromLTWH(
+        0,
+        layoutInfo.infoPanelTop.toDouble(),
+        layoutInfo.targetWidth.toDouble(),
+        layoutInfo.infoPanelHeight.toDouble(),
+      ),
+      Paint()..color = Colors.white,
     );
   }
 }
@@ -654,6 +717,7 @@ void _paintClassicWatermark(
   }
 }
 
+// ignore: unused_element
 Future<Uint8List> _applyWatermark(
   Uint8List rasterBytes,
   WatermarkSettings settings,
@@ -861,6 +925,70 @@ Future<Uint8List> _applyWatermark(
   return pngBytes;
 }
 
+Future<Uint8List> _applyClassicDecorations({
+  required Uint8List rasterBytes,
+  required ProcessingSettings settings,
+  required ExifSnapshot exif,
+  required LayoutInfo layoutInfo,
+  required RasterOutputFormat outputFormat,
+  required int jpegQuality,
+}) async {
+  final baseImage = await _decodeUiImage(rasterBytes);
+  final classicInfoBorderLogo = settings.classicInfoBorder.enabled
+      ? await loadClassicInfoBorderLogo(
+          resolveClassicInfoBorderLogoAsset(settings.classicInfoBorder, exif),
+        )
+      : null;
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+
+  canvas.drawImage(baseImage, Offset.zero, Paint());
+  paintClassicInfoBorder(
+    canvas: canvas,
+    layoutInfo: layoutInfo,
+    settings: settings.classicInfoBorder,
+    exif: exif,
+    logo: classicInfoBorderLogo,
+  );
+  if (settings.watermark.enabled) {
+    _paintClassicWatermark(canvas, settings.watermark, exif, layoutInfo);
+  }
+
+  final picture = recorder.endRecording();
+  final rendered = await picture.toImage(
+    layoutInfo.targetWidth,
+    layoutInfo.targetHeight,
+  );
+  final byteData = await rendered.toByteData(format: ui.ImageByteFormat.png);
+  classicInfoBorderLogo?.dispose();
+  baseImage.dispose();
+  rendered.dispose();
+  picture.dispose();
+
+  if (byteData == null) {
+    throw StateError('Unable to render classic decorations.');
+  }
+
+  final pngBytes = byteData.buffer.asUint8List();
+  if (outputFormat == RasterOutputFormat.jpeg) {
+    final decoded = img.decodeImage(pngBytes);
+    if (decoded == null) {
+      throw StateError('Unable to encode classic preview bytes.');
+    }
+    return img.encodeJpg(decoded, quality: jpegQuality);
+  }
+
+  return pngBytes;
+}
+
+bool _needsClassicDecorationPass(ProcessingSettings settings) {
+  return settings.watermark.enabled || settings.classicInfoBorder.enabled;
+}
+
+bool _usesPlainBackgroundForWatermarkBorder(ProcessingSettings settings) {
+  return settings.template == FrameTemplate.watermarkBorder;
+}
+
 Offset calculateClassicWatermarkPosition(
   WatermarkPosition position,
   LayoutInfo layoutInfo,
@@ -955,6 +1083,10 @@ img.Image _createBackground(
   int targetHeight,
   ProcessingSettings settings,
 ) {
+  if (_usesPlainBackgroundForWatermarkBorder(settings)) {
+    return img.Image(width: targetWidth, height: targetHeight, numChannels: 4)
+      ..clear(img.ColorRgba8(255, 255, 255, 255));
+  }
   const downscaleFactor = 4;
   final smallWidth = math.max(1, targetWidth ~/ downscaleFactor);
   final smallHeight = math.max(1, targetHeight ~/ downscaleFactor);
@@ -1022,6 +1154,23 @@ img.Image _createBackground(
       x2: targetWidth - 1,
       y2: targetHeight - 1,
       color: img.ColorRgba8(255, 255, 255, 80),
+    );
+  }
+
+  if (settings.classicInfoBorder.enabled && targetHeight > 0) {
+    final panelHeight = calculateClassicInfoBorderMetrics(
+      targetWidth: targetWidth,
+      targetHeight: targetHeight,
+      settings: settings.classicInfoBorder,
+    ).footerHeight.round();
+    final panelTop = math.max(0, targetHeight - panelHeight);
+    img.fillRect(
+      bgFinal,
+      x1: 0,
+      y1: panelTop,
+      x2: targetWidth - 1,
+      y2: targetHeight - 1,
+      color: img.ColorRgba8(255, 255, 255, 255),
     );
   }
 

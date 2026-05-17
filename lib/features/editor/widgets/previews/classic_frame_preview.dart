@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../../models/processing_settings.dart';
 import '../../../../services/frame_processing_models.dart';
 import '../../../../services/frame_renderers/classic_frame_renderer.dart';
+import '../../../../services/frame_renderers/classic_info_border_support.dart';
 
 class ClassicFramePreview extends StatefulWidget {
   const ClassicFramePreview({
@@ -29,11 +30,14 @@ class ClassicFramePreview extends StatefulWidget {
 
 class _ClassicFramePreviewState extends State<ClassicFramePreview> {
   ui.Image? _sourceImage;
+  ClassicInfoBorderLogo? _infoBorderLogo;
+  int _logoLoadRevision = 0;
 
   @override
   void initState() {
     super.initState();
     _loadSourceImage();
+    _loadInfoBorderLogo();
   }
 
   @override
@@ -42,6 +46,15 @@ class _ClassicFramePreviewState extends State<ClassicFramePreview> {
     if (!identical(oldWidget.sourceBytes, widget.sourceBytes)) {
       _disposeSourceImage();
       _loadSourceImage();
+    }
+    final oldAssetPath = _resolvedLogoAssetPath(
+      oldWidget.settings,
+      oldWidget.exif,
+    );
+    final newAssetPath = _resolvedLogoAssetPath(widget.settings, widget.exif);
+    if (oldAssetPath != newAssetPath) {
+      _disposeInfoBorderLogo();
+      _loadInfoBorderLogo();
     }
   }
 
@@ -65,12 +78,46 @@ class _ClassicFramePreviewState extends State<ClassicFramePreview> {
   @override
   void dispose() {
     _disposeSourceImage();
+    _disposeInfoBorderLogo();
     super.dispose();
   }
 
   void _disposeSourceImage() {
     _sourceImage?.dispose();
     _sourceImage = null;
+  }
+
+  String? _resolvedLogoAssetPath(
+    ProcessingSettings settings,
+    ExifSnapshot exif,
+  ) {
+    if (!settings.classicInfoBorder.enabled) {
+      return null;
+    }
+    return resolveClassicInfoBorderLogoAsset(settings.classicInfoBorder, exif);
+  }
+
+  Future<void> _loadInfoBorderLogo() async {
+    final assetPath = _resolvedLogoAssetPath(widget.settings, widget.exif);
+    if (assetPath == null) {
+      return;
+    }
+
+    final revision = ++_logoLoadRevision;
+    final logo = await loadClassicInfoBorderLogo(assetPath);
+    if (!mounted || revision != _logoLoadRevision) {
+      logo?.dispose();
+      return;
+    }
+    setState(() {
+      _infoBorderLogo = logo;
+    });
+  }
+
+  void _disposeInfoBorderLogo() {
+    _logoLoadRevision++;
+    _infoBorderLogo?.dispose();
+    _infoBorderLogo = null;
   }
 
   @override
@@ -118,6 +165,7 @@ class _ClassicFramePreviewState extends State<ClassicFramePreview> {
               settings: widget.settings,
               exif: widget.exif,
               layoutInfo: layout,
+              classicInfoBorderLogo: _infoBorderLogo,
             ),
           ),
         ),
@@ -132,12 +180,14 @@ class _ClassicFramePreviewPainter extends CustomPainter {
     required this.settings,
     required this.exif,
     required this.layoutInfo,
+    this.classicInfoBorderLogo,
   });
 
   final ui.Image image;
   final ProcessingSettings settings;
   final ExifSnapshot exif;
   final LayoutInfo layoutInfo;
+  final ClassicInfoBorderLogo? classicInfoBorderLogo;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -152,6 +202,7 @@ class _ClassicFramePreviewPainter extends CustomPainter {
       layoutInfo: layoutInfo,
       settings: settings,
       exif: exif,
+      classicInfoBorderLogo: classicInfoBorderLogo,
     );
     canvas.restore();
   }
@@ -161,6 +212,7 @@ class _ClassicFramePreviewPainter extends CustomPainter {
     return oldDelegate.image != image ||
         oldDelegate.settings != settings ||
         oldDelegate.exif != exif ||
-        oldDelegate.layoutInfo != layoutInfo;
+        oldDelegate.layoutInfo != layoutInfo ||
+        oldDelegate.classicInfoBorderLogo != classicInfoBorderLogo;
   }
 }

@@ -17,7 +17,7 @@ class HomePage extends StatelessWidget {
         slivers: [
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 26, 20, 0),
-            sliver: SliverToBoxAdapter(
+            sliver: const SliverToBoxAdapter(
               child: PageTitleRow(title: '首页', subtitle: '快速选择适合照片的边框风格'),
             ),
           ),

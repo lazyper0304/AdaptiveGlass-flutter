@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'classic_info_border_settings.dart';
 import 'frame_template.dart';
 
 enum RatioPreset {
@@ -303,6 +304,7 @@ class ProcessingSettings {
     this.contentScale = 90,
     this.exportQuality = 95,
     this.watermark = const WatermarkSettings(),
+    this.classicInfoBorder = const ClassicInfoBorderSettings(),
   });
 
   final FrameTemplate template;
@@ -318,6 +320,7 @@ class ProcessingSettings {
   final int contentScale;
   final int exportQuality;
   final WatermarkSettings watermark;
+  final ClassicInfoBorderSettings classicInfoBorder;
 
   ProcessingSettings copyWith({
     FrameTemplate? template,
@@ -333,6 +336,7 @@ class ProcessingSettings {
     int? contentScale,
     int? exportQuality,
     WatermarkSettings? watermark,
+    ClassicInfoBorderSettings? classicInfoBorder,
   }) {
     return ProcessingSettings(
       template: template ?? this.template,
@@ -348,6 +352,7 @@ class ProcessingSettings {
       contentScale: contentScale ?? this.contentScale,
       exportQuality: exportQuality ?? this.exportQuality,
       watermark: watermark ?? this.watermark,
+      classicInfoBorder: classicInfoBorder ?? this.classicInfoBorder,
     );
   }
 
@@ -366,6 +371,7 @@ class ProcessingSettings {
       'content_scale': contentScale,
       'export_quality': exportQuality,
       'watermark': watermark.toJson(),
+      'classic_info_border': classicInfoBorder.toJson(),
     };
   }
 
@@ -387,6 +393,11 @@ class ProcessingSettings {
       exportQuality: (json['export_quality'] as num?)?.round() ?? 95,
       watermark: WatermarkSettings.fromJson(
         Map<String, dynamic>.from(json['watermark'] as Map? ?? const {}),
+      ),
+      classicInfoBorder: ClassicInfoBorderSettings.fromJson(
+        Map<String, dynamic>.from(
+          json['classic_info_border'] as Map? ?? const {},
+        ),
       ),
     );
   }

@@ -45,6 +45,7 @@ class AdaptiveGlassProcessor {
   }) {
     switch (settings.template) {
       case FrameTemplate.classic:
+      case FrameTemplate.watermarkBorder:
         return _classicRenderer.process(
           sourceBytes: sourceBytes,
           settings: settings,
@@ -72,6 +73,7 @@ class AdaptiveGlassProcessor {
   }) {
     switch (settings.template) {
       case FrameTemplate.classic:
+      case FrameTemplate.watermarkBorder:
         return _classicRenderer.processPreviewComposite(
           sourceBytes,
           settings,
@@ -94,6 +96,7 @@ class AdaptiveGlassProcessor {
     final resolvedExif = exif ?? await _readExif(sourceBytes);
     switch (settings.template) {
       case FrameTemplate.classic:
+      case FrameTemplate.watermarkBorder:
         return _classicRenderer.process(
           sourceBytes: sourceBytes,
           settings: settings,
