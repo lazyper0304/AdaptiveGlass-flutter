@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
+import '../models/frame_template.dart';
 import '../models/processing_settings.dart';
 
 class ProcessingOutput {
@@ -94,9 +95,50 @@ class ExifSnapshot {
   final String focalLength;
 }
 
+class PaletteSwatch {
+  const PaletteSwatch({
+    required this.red,
+    required this.green,
+    required this.blue,
+  });
+
+  final int red;
+  final int green;
+  final int blue;
+
+  Color toColor() => Color.fromARGB(255, red, green, blue);
+
+  img.ColorRgba8 toImageColor() => img.ColorRgba8(red, green, blue, 255);
+
+  Map<String, int> toJson() {
+    return <String, int>{'red': red, 'green': green, 'blue': blue};
+  }
+
+  factory PaletteSwatch.fromJson(Map<String, dynamic> json) {
+    return PaletteSwatch(
+      red: (json['red'] as num).round(),
+      green: (json['green'] as num).round(),
+      blue: (json['blue'] as num).round(),
+    );
+  }
+}
+
 class AdaptiveGlassProcessor {
   Future<ExifSnapshot> readExif(Uint8List sourceBytes) =>
       _readExif(sourceBytes);
+
+  Future<List<PaletteSwatch>> extractPalette(
+    Uint8List sourceBytes, {
+    int count = 5,
+  }) async {
+    final result = await compute(_extractPaletteTask, <String, Object?>{
+      'bytes': sourceBytes,
+      'count': count,
+    });
+    return result
+        .map((item) => PaletteSwatch.fromJson(Map<String, dynamic>.from(item)))
+        .toList();
+  }
 
   Future<ProcessingOutput> process(
     Uint8List sourceBytes,
@@ -518,48 +560,11 @@ Future<Map<String, Object?>> _processRasterTask(
   );
   final settings = layers.settings;
   final layoutInfo = layers.layoutInfo;
-  var foreground = layers.foreground;
-
-  // 导出时应用边框、圆角和阴影（保持高质量）
-  if (settings.borderStyle != BorderStyleOption.none) {
-    foreground = _applyBorder(foreground, settings);
-  }
-
-  final finalImage = layers.background.clone();
-
-  if (settings.shadowSize > 0) {
-    final pad = settings.shadowSize * 3;
-    final shadowLayer = img.Image(
-      width: layoutInfo.contentWidth + pad * 2,
-      height: layoutInfo.contentHeight + pad * 2,
-      numChannels: 4,
-    )..clear(img.ColorRgba8(0, 0, 0, 0));
-
-    img.fillRect(
-      shadowLayer,
-      x1: pad,
-      y1: pad,
-      x2: pad + layoutInfo.contentWidth - 1,
-      y2: pad + layoutInfo.contentHeight - 1,
-      color: img.ColorRgba8(0, 0, 0, 180),
-      radius: settings.borderStyle == BorderStyleOption.rounded
-          ? settings.cornerRadius
-          : 0,
-    );
-    img.gaussianBlur(shadowLayer, radius: settings.shadowSize);
-    img.compositeImage(
-      finalImage,
-      shadowLayer,
-      dstX: layoutInfo.contentX - pad,
-      dstY: layoutInfo.contentY - pad,
-    );
-  }
-
-  img.compositeImage(
-    finalImage,
-    foreground,
-    dstX: layoutInfo.contentX,
-    dstY: layoutInfo.contentY,
+  final finalImage = _renderTemplateImage(
+    background: layers.background.clone(),
+    foreground: layers.foreground,
+    layoutInfo: layoutInfo,
+    settings: settings,
   );
 
   return <String, Object?>{
@@ -612,6 +617,28 @@ img.Image _composePreviewImage({
   required LayoutInfo layoutInfo,
   required ProcessingSettings settings,
 }) {
+  return _renderTemplateImage(
+    background: background,
+    foreground: foreground,
+    layoutInfo: layoutInfo,
+    settings: settings,
+  );
+}
+
+img.Image _renderTemplateImage({
+  required img.Image background,
+  required img.Image foreground,
+  required LayoutInfo layoutInfo,
+  required ProcessingSettings settings,
+}) {
+  if (settings.template == FrameTemplate.colorBorder) {
+    return _composeColorBorderImage(
+      canvas: background,
+      foreground: foreground,
+      layoutInfo: layoutInfo,
+    );
+  }
+
   var foregroundWithBorder = foreground;
   if (settings.borderStyle != BorderStyleOption.none) {
     foregroundWithBorder = _applyBorder(foregroundWithBorder, settings);
@@ -655,6 +682,241 @@ img.Image _composePreviewImage({
   return background;
 }
 
+img.Image _composeColorBorderImage({
+  required img.Image canvas,
+  required img.Image foreground,
+  required LayoutInfo layoutInfo,
+}) {
+  final palette = _extractPaletteSwatches(foreground, count: 5)
+      .map((item) => item.toImageColor())
+      .toList();
+  final borderThickness = math.max(
+    10,
+    (math.min(layoutInfo.targetWidth, layoutInfo.targetHeight) * 0.022).round(),
+  );
+
+  _paintPhotoShadow(canvas, layoutInfo, borderThickness);
+  img.compositeImage(
+    canvas,
+    foreground,
+    dstX: layoutInfo.contentX,
+    dstY: layoutInfo.contentY,
+  );
+  _paintPaletteRow(canvas, palette, layoutInfo, borderThickness);
+  return canvas;
+}
+
+void _paintPhotoShadow(
+  img.Image canvas,
+  LayoutInfo layoutInfo,
+  int borderThickness,
+) {
+  final pad = math.max(8, borderThickness);
+  final shadow = img.Image(
+    width: layoutInfo.contentWidth + pad * 2,
+    height: layoutInfo.contentHeight + pad * 2,
+    numChannels: 4,
+  )..clear(img.ColorRgba8(0, 0, 0, 0));
+  img.fillRect(
+    shadow,
+    x1: pad,
+    y1: pad,
+    x2: pad + layoutInfo.contentWidth - 1,
+    y2: pad + layoutInfo.contentHeight - 1,
+    color: img.ColorRgba8(0, 0, 0, 38),
+  );
+  img.gaussianBlur(shadow, radius: math.max(4, borderThickness ~/ 2));
+  img.compositeImage(
+    canvas,
+    shadow,
+    dstX: layoutInfo.contentX - pad,
+    dstY: layoutInfo.contentY - (pad ~/ 3),
+  );
+}
+
+void _paintPaletteRow(
+  img.Image canvas,
+  List<img.ColorRgba8> palette,
+  LayoutInfo layoutInfo,
+  int borderThickness,
+) {
+  final innerBottom = canvas.height - borderThickness;
+  final availableHeight =
+      innerBottom - (layoutInfo.contentY + layoutInfo.contentHeight);
+  final circleRadius = math.max(12, math.min(28, canvas.width ~/ 30)).toInt();
+  final circleCenterY = (layoutInfo.contentY +
+      layoutInfo.contentHeight +
+      math.max(circleRadius + 8, availableHeight ~/ 3))
+      .toInt();
+  final labelFont = circleRadius >= 24 ? img.arial24 : img.arial14;
+  final labelColor = img.ColorRgba8(109, 98, 89, 255);
+  final sidePadding = (borderThickness + math.max(circleRadius, 18)).toInt();
+  final usableWidth = canvas.width - sidePadding * 2;
+  final labelY = math.min(
+    innerBottom - _fontHeight(labelFont) - 10,
+    circleCenterY + circleRadius + math.max(10, circleRadius ~/ 2),
+  ).toInt();
+
+  for (var index = 0; index < palette.length; index++) {
+    final centerX = palette.length == 1
+        ? canvas.width ~/ 2
+        : sidePadding + ((usableWidth * index) / (palette.length - 1)).round();
+    final color = palette[index];
+    img.fillCircle(
+      canvas,
+      x: centerX,
+      y: circleCenterY,
+      radius: circleRadius + math.max(2, circleRadius ~/ 6),
+      color: img.ColorRgba8(255, 255, 255, 255),
+    );
+    img.fillCircle(
+      canvas,
+      x: centerX,
+      y: circleCenterY,
+      radius: circleRadius,
+      color: color,
+    );
+    final label = 'RGB(${color.r}, ${color.g}, ${color.b})';
+    final labelX = centerX - (_estimateTextWidth(label, labelFont) ~/ 2);
+    img.drawString(
+      canvas,
+      label,
+      x: labelX,
+      y: labelY,
+      font: labelFont,
+      color: labelColor,
+    );
+  }
+}
+
+List<PaletteSwatch> _extractPaletteSwatches(
+  img.Image image, {
+  required int count,
+}) {
+  final sampled = img.copyResize(
+    image,
+    width: 72,
+    height: math.max(1, (image.height * (72 / image.width)).round()),
+    interpolation: img.Interpolation.linear,
+  );
+  final buckets = <int, _PaletteBucket>{};
+
+  for (final pixel in sampled) {
+    if (pixel.a < 200) {
+      continue;
+    }
+    final r = pixel.r.toInt();
+    final g = pixel.g.toInt();
+    final b = pixel.b.toInt();
+    final saturation =
+        math.max(r, math.max(g, b)) - math.min(r, math.min(g, b));
+    final brightness = (r + g + b) / 3;
+    final weight = (saturation + (brightness < 240 ? 28 : 8)).round();
+    final key = ((r ~/ 32) << 10) | ((g ~/ 32) << 5) | (b ~/ 32);
+    buckets.putIfAbsent(key, _PaletteBucket.new).add(r, g, b, weight);
+  }
+
+  final sorted = buckets.values.toList()
+    ..sort((a, b) => b.weight.compareTo(a.weight));
+
+  final palette = <PaletteSwatch>[];
+  for (final bucket in sorted) {
+    final candidate = bucket.toColor();
+    if (palette.every((color) => _colorDistance(color, candidate) >= 84)) {
+      palette.add(candidate);
+    }
+    if (palette.length == count) {
+      break;
+    }
+  }
+
+  if (palette.length < count) {
+    for (final bucket in sorted) {
+      final candidate = bucket.toColor();
+      final exists = palette.any(
+        (color) =>
+            color.red == candidate.red &&
+            color.green == candidate.green &&
+            color.blue == candidate.blue,
+      );
+      if (!exists) {
+        palette.add(candidate);
+      }
+      if (palette.length == count) {
+        break;
+      }
+    }
+  }
+
+  while (palette.length < count) {
+    palette.add(
+      palette.isNotEmpty
+          ? palette.last
+          : const PaletteSwatch(red: 236, green: 226, blue: 214),
+    );
+  }
+
+  return palette;
+}
+
+int _colorDistance(PaletteSwatch left, PaletteSwatch right) {
+  return ((left.red - right.red).abs() +
+          (left.green - right.green).abs() +
+          (left.blue - right.blue).abs())
+      .round();
+}
+
+int _estimateTextWidth(String text, img.BitmapFont font) {
+  final glyphWidth = identical(font, img.arial24) ? 13 : 8;
+  return text.length * glyphWidth;
+}
+
+int _fontHeight(img.BitmapFont font) {
+  return identical(font, img.arial24) ? 24 : 14;
+}
+
+class _PaletteBucket {
+  int red = 0;
+  int green = 0;
+  int blue = 0;
+  int weight = 0;
+
+  void add(int r, int g, int b, int nextWeight) {
+    red += r * nextWeight;
+    green += g * nextWeight;
+    blue += b * nextWeight;
+    weight += nextWeight;
+  }
+
+  PaletteSwatch toColor() {
+    if (weight == 0) {
+      return const PaletteSwatch(red: 236, green: 226, blue: 214);
+    }
+    return PaletteSwatch(
+      red: (red / weight).round(),
+      green: (green / weight).round(),
+      blue: (blue / weight).round(),
+    );
+  }
+}
+
+List<Map<String, int>> _extractPaletteTask(Map<String, Object?> input) {
+  final sourceBytes = input['bytes']! as Uint8List;
+  final count = (input['count'] as num?)?.round() ?? 5;
+  final decoded = img.decodeImage(sourceBytes);
+  if (decoded == null) {
+    return List.generate(
+      count,
+      (_) => const PaletteSwatch(red: 236, green: 226, blue: 214).toJson(),
+    );
+  }
+
+  final source = img.bakeOrientation(decoded).convert(numChannels: 4);
+  return _extractPaletteSwatches(source, count: count)
+      .map((item) => item.toJson())
+      .toList();
+}
+
 enum _RasterOutputFormat { png, jpeg }
 
 ({
@@ -684,6 +946,13 @@ _buildRasterLayers(
   final settings = renderScale >= 0.999
       ? originalSettings
       : _scaleSettingsForPreview(originalSettings, renderScale);
+  if (settings.template == FrameTemplate.colorBorder) {
+    return _buildColorBorderLayers(
+      source: source,
+      settings: settings,
+      renderScale: renderScale,
+    );
+  }
   final targetSize = _calculateTargetSize(
     source.width,
     source.height,
@@ -722,6 +991,59 @@ _buildRasterLayers(
       targetHeight: targetHeight,
       contentX: contentX,
       contentY: contentY,
+      contentWidth: contentWidth,
+      contentHeight: contentHeight,
+    ),
+    renderScale: renderScale,
+    settings: settings,
+  );
+}
+
+({
+  img.Image background,
+  img.Image foreground,
+  LayoutInfo layoutInfo,
+  double renderScale,
+  ProcessingSettings settings,
+})
+_buildColorBorderLayers({
+  required img.Image source,
+  required ProcessingSettings settings,
+  required double renderScale,
+}) {
+  final scale = settings.contentScale / 100;
+  final contentWidth = math.max(1, (source.width * scale).round());
+  final contentHeight = math.max(1, (source.height * scale).round());
+  final foreground = img
+      .copyResize(
+        source,
+        width: contentWidth,
+        height: contentHeight,
+        interpolation: img.Interpolation.cubic,
+      )
+      .convert(numChannels: 4);
+
+  final unit = math.max(20, (math.min(contentWidth, contentHeight) * 0.06).round());
+  final outerBorder = math.max(14, (unit * 0.45).round());
+  final mattePadding = unit;
+  final paletteHeight = math.max(120, (contentHeight * 0.24).round());
+  final targetWidth = contentWidth + (outerBorder + mattePadding) * 2;
+  final targetHeight =
+      contentHeight + (outerBorder + mattePadding) * 2 + paletteHeight;
+  final background = img.Image(
+    width: targetWidth,
+    height: targetHeight,
+    numChannels: 4,
+  )..clear(img.ColorRgba8(255, 255, 255, 255));
+
+  return (
+    background: background,
+    foreground: foreground,
+    layoutInfo: LayoutInfo(
+      targetWidth: targetWidth,
+      targetHeight: targetHeight,
+      contentX: outerBorder + mattePadding,
+      contentY: outerBorder + mattePadding,
       contentWidth: contentWidth,
       contentHeight: contentHeight,
     ),

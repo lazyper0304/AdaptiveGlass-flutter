@@ -1,17 +1,30 @@
-class TemplateData {
-  const TemplateData({required this.title, required this.variant});
+import '../../../models/frame_template.dart';
 
+class TemplateData {
+  const TemplateData({
+    required this.template,
+    required this.title,
+    required this.subtitle,
+    required this.variant,
+  });
+
+  final FrameTemplate template;
   final String title;
+  final String subtitle;
   final int variant;
 }
 
-const galleryNames = [
-  '经典模式',
-  '简约日期',
-  '经典边框',
-  '速度残影',
-  '城市夜色',
-  '胶片留白',
-  '暗房质感',
-  '自然光影',
+const homeTemplates = [
+  TemplateData(
+    template: FrameTemplate.classic,
+    title: '经典模式',
+    subtitle: '保留原有玻璃感边框和实时调节能力',
+    variant: 3,
+  ),
+  TemplateData(
+    template: FrameTemplate.colorBorder,
+    title: '色彩边框',
+    subtitle: '自动加白边，并从图片提取五种颜色生成色卡',
+    variant: 0,
+  ),
 ];

@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../../models/frame_template.dart';
+import '../home/models/home_template_data.dart';
 import '../../shared/adaptive_glass_backdrop.dart';
 import 'adaptive_glass_editor_controller.dart';
 import 'widgets/editor_preview_card.dart';
@@ -13,9 +15,9 @@ import 'widgets/editor_settings_panel.dart';
 import 'widgets/editor_status_bar.dart';
 
 class AdaptiveGlassEditorPage extends StatefulWidget {
-  const AdaptiveGlassEditorPage({super.key, required this.title});
+  const AdaptiveGlassEditorPage({super.key, required this.template});
 
-  final String title;
+  final TemplateData template;
 
   @override
   State<AdaptiveGlassEditorPage> createState() =>
@@ -29,7 +31,9 @@ class _AdaptiveGlassEditorPageState extends State<AdaptiveGlassEditorPage> {
   @override
   void initState() {
     super.initState();
-    _controller = AdaptiveGlassEditorController();
+    _controller = AdaptiveGlassEditorController(
+      template: widget.template.template,
+    );
     _watermarkController = TextEditingController(
       text: _controller.watermarkText,
     );
@@ -192,11 +196,11 @@ class _AdaptiveGlassEditorPageState extends State<AdaptiveGlassEditorPage> {
                   ),
                 ),
                 title: Hero(
-                  tag: 'editor-title-${widget.title}',
+                  tag: widget.template.template.heroTag,
                   child: Material(
                     type: MaterialType.transparency,
                     child: Text(
-                      widget.title,
+                      widget.template.title,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         color: colors.onSurface,
                         fontWeight: FontWeight.w900,
@@ -233,7 +237,9 @@ class _AdaptiveGlassEditorPageState extends State<AdaptiveGlassEditorPage> {
                 builder: (context, constraints) {
                   final isWide = constraints.maxWidth >= 1100;
                   final preview = EditorPreviewCard(
+                    template: widget.template.template,
                     preview: _controller.previewComposite,
+                    palette: _controller.palette,
                     settings: _controller.settings,
                     exif: _controller.previewExif,
                     onTap: _pickImage,
@@ -241,6 +247,7 @@ class _AdaptiveGlassEditorPageState extends State<AdaptiveGlassEditorPage> {
                     sourceBytesThumb: _controller.sourceBytesThumb,
                   );
                   final panel = EditorSettingsPanel(
+                    template: widget.template.template,
                     settings: _controller.settings,
                     exportFormat: _controller.exportFormat,
                     watermarkController: _watermarkController,

@@ -5,13 +5,16 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../../../models/frame_template.dart';
 import '../../../models/processing_settings.dart';
 import '../../../services/adaptive_glass_processor.dart';
 
 class EditorPreviewCard extends StatelessWidget {
   const EditorPreviewCard({
     super.key,
+    required this.template,
     required this.preview,
+    required this.palette,
     required this.settings,
     required this.exif,
     required this.onTap,
@@ -19,7 +22,9 @@ class EditorPreviewCard extends StatelessWidget {
     this.sourceBytesThumb,
   });
 
+  final FrameTemplate template;
   final PreviewCompositeOutput? preview;
+  final List<PaletteSwatch> palette;
   final ProcessingSettings settings;
   final ExifSnapshot exif;
   final VoidCallback onTap;
@@ -77,7 +82,9 @@ class EditorPreviewCard extends StatelessWidget {
                       ],
                     )
                   : _RealtimePreviewLayer(
+                      template: template,
                       preview: preview,
+                      palette: palette,
                       settings: settings,
                       exif: exif,
                       sourceBytes: sourceBytes!,
@@ -93,14 +100,18 @@ class EditorPreviewCard extends StatelessWidget {
 
 class _RealtimePreviewLayer extends StatefulWidget {
   const _RealtimePreviewLayer({
+    required this.template,
     required this.preview,
+    required this.palette,
     required this.settings,
     required this.exif,
     required this.sourceBytes,
     this.thumbBytes,
   });
 
+  final FrameTemplate template;
   final PreviewCompositeOutput? preview;
+  final List<PaletteSwatch> palette;
   final ProcessingSettings settings;
   final ExifSnapshot exif;
   final Uint8List sourceBytes;
@@ -158,6 +169,33 @@ class _RealtimePreviewLayerState extends State<_RealtimePreviewLayer> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.template == FrameTemplate.colorBorder) {
+      final sourceImage = _sourceImage;
+      if (sourceImage != null) {
+        return InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 4,
+          child: _ColorBorderGpuPreview(
+            image: sourceImage,
+            palette: widget.palette,
+          ),
+        );
+      }
+
+      final thumbBytes = widget.thumbBytes;
+      if (thumbBytes != null) {
+        return Center(
+          child: Image.memory(
+            thumbBytes,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+          ),
+        );
+      }
+
+      return const Center(child: CircularProgressIndicator());
+    }
+
     final sourceImage = _sourceImage;
     if (sourceImage == null) {
       final thumbBytes = widget.thumbBytes;
@@ -299,6 +337,182 @@ class _RealtimePreviewLayerState extends State<_RealtimePreviewLayer> {
       child: imageWidget,
     );
   }
+}
+
+class _ColorBorderGpuPreview extends StatelessWidget {
+  const _ColorBorderGpuPreview({
+    required this.image,
+    required this.palette,
+  });
+
+  final ui.Image image;
+  final List<PaletteSwatch> palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final metrics = _calculateColorBorderMetrics(
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
+    final swatches = palette.isEmpty
+        ? List<PaletteSwatch>.filled(
+            5,
+            const PaletteSwatch(red: 236, green: 226, blue: 214),
+          )
+        : palette;
+
+    return AspectRatio(
+      aspectRatio: metrics.canvasWidth / metrics.canvasHeight,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final scale = constraints.maxWidth / metrics.canvasWidth;
+          final photoRect = Rect.fromLTWH(
+            metrics.photoX * scale,
+            metrics.photoY * scale,
+            metrics.photoWidth * scale,
+            metrics.photoHeight * scale,
+          );
+          final circleSize = metrics.circleRadius * 2 * scale;
+          final circleTop = metrics.circleCenterY * scale - (circleSize / 2);
+          final labelWidth = metrics.labelWidth * scale;
+          final labelFontSize = math.max(7.0, 10.0 * scale);
+
+          return DecoratedBox(
+            decoration: const BoxDecoration(color: Colors.white),
+            child: Stack(
+              children: [
+                Positioned.fromRect(
+                  rect: photoRect,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 22 * scale,
+                          offset: Offset(0, 8 * scale),
+                        ),
+                      ],
+                    ),
+                    child: RawImage(
+                      image: image,
+                      fit: BoxFit.fill,
+                      filterQuality: FilterQuality.medium,
+                    ),
+                  ),
+                ),
+                for (var index = 0; index < swatches.length; index++)
+                  Positioned(
+                    left: (metrics.circleCenters[index] * scale) - (labelWidth / 2),
+                    top: circleTop,
+                    width: labelWidth,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: circleSize,
+                          height: circleSize,
+                          decoration: BoxDecoration(
+                            color: swatches[index].toColor(),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: math.max(2, 4 * scale),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 10 * scale),
+                        SizedBox(
+                          width: labelWidth,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              'RGB ${swatches[index].red},${swatches[index].green},${swatches[index].blue}',
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              softWrap: false,
+                              style: TextStyle(
+                                color: const Color(0xFF6D6259),
+                                fontSize: labelFontSize,
+                                fontWeight: FontWeight.w700,
+                                height: 1.1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ColorBorderMetrics {
+  const _ColorBorderMetrics({
+    required this.canvasWidth,
+    required this.canvasHeight,
+    required this.photoX,
+    required this.photoY,
+    required this.photoWidth,
+    required this.photoHeight,
+    required this.circleRadius,
+    required this.circleCenterY,
+    required this.labelWidth,
+    required this.circleCenters,
+  });
+
+  final double canvasWidth;
+  final double canvasHeight;
+  final double photoX;
+  final double photoY;
+  final double photoWidth;
+  final double photoHeight;
+  final double circleRadius;
+  final double circleCenterY;
+  final double labelWidth;
+  final List<double> circleCenters;
+}
+
+_ColorBorderMetrics _calculateColorBorderMetrics(
+  double sourceWidth,
+  double sourceHeight,
+) {
+  final contentWidth = sourceWidth;
+  final contentHeight = sourceHeight;
+  final unit = math.max(20.0, math.min(contentWidth, contentHeight) * 0.06);
+  final outerBorder = math.max(14.0, unit * 0.45);
+  final mattePadding = unit;
+  final paletteHeight = math.max(120.0, contentHeight * 0.24);
+  final canvasWidth = contentWidth + (outerBorder + mattePadding) * 2;
+  final canvasHeight =
+      contentHeight + (outerBorder + mattePadding) * 2 + paletteHeight;
+  final circleRadius = math.max(12.0, math.min(28.0, canvasWidth / 30));
+  final circleCenterY =
+      outerBorder + mattePadding + contentHeight + math.max(circleRadius + 8, paletteHeight / 3);
+  final sidePadding = outerBorder + math.max(circleRadius, 18);
+  final usableWidth = canvasWidth - sidePadding * 2;
+  final slotWidth = usableWidth / 4;
+  final centers = List<double>.generate(
+    5,
+    (index) => sidePadding + (slotWidth * index),
+  );
+  final labelWidth = math.max(circleRadius * 2.2, slotWidth * 1.08);
+
+  return _ColorBorderMetrics(
+    canvasWidth: canvasWidth,
+    canvasHeight: canvasHeight,
+    photoX: outerBorder + mattePadding,
+    photoY: outerBorder + mattePadding,
+    photoWidth: contentWidth,
+    photoHeight: contentHeight,
+    circleRadius: circleRadius,
+    circleCenterY: circleCenterY,
+    labelWidth: labelWidth,
+    circleCenters: centers,
+  );
 }
 
 class _RealtimeBackground extends StatelessWidget {

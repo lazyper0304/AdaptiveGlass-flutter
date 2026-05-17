@@ -23,25 +23,14 @@ class HomePage extends StatelessWidget {
           ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 28, 20, 150),
-            sliver: SliverGrid.builder(
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 250,
-                mainAxisSpacing: 24,
-                crossAxisSpacing: 22,
-                childAspectRatio: 0.82,
-              ),
-              itemCount: galleryNames.length,
+            sliver: SliverList.separated(
+              itemCount: homeTemplates.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 18),
               itemBuilder: (context, index) {
+                final template = homeTemplates[index];
                 return TemplateTile(
-                  data: TemplateData(
-                    title: galleryNames[index],
-                    variant: index + 1,
-                  ),
-                  onTap: () => context.push(
-                    '/editor',
-                    extra: galleryNames[index],
-                  ),
-                  compactMeta: index.isOdd,
+                  data: template,
+                  onTap: () => context.push('/editor', extra: template),
                 );
               },
             ),

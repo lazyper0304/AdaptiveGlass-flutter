@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'frame_template.dart';
+
 enum RatioPreset {
   square,
   fourThree,
@@ -288,6 +290,7 @@ class WatermarkSettings {
 
 class ProcessingSettings {
   const ProcessingSettings({
+    this.template = FrameTemplate.classic,
     this.targetRatio = RatioPreset.original,
     this.blurMode = BlurModeOption.standard,
     this.blurRadius = 35,
@@ -302,6 +305,7 @@ class ProcessingSettings {
     this.watermark = const WatermarkSettings(),
   });
 
+  final FrameTemplate template;
   final RatioPreset targetRatio;
   final BlurModeOption blurMode;
   final int blurRadius;
@@ -316,6 +320,7 @@ class ProcessingSettings {
   final WatermarkSettings watermark;
 
   ProcessingSettings copyWith({
+    FrameTemplate? template,
     RatioPreset? targetRatio,
     BlurModeOption? blurMode,
     int? blurRadius,
@@ -330,6 +335,7 @@ class ProcessingSettings {
     WatermarkSettings? watermark,
   }) {
     return ProcessingSettings(
+      template: template ?? this.template,
       targetRatio: targetRatio ?? this.targetRatio,
       blurMode: blurMode ?? this.blurMode,
       blurRadius: blurRadius ?? this.blurRadius,
@@ -347,6 +353,7 @@ class ProcessingSettings {
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
+      'template': template.storageValue,
       'target_ratio': targetRatio.storageKey,
       'blur_mode': blurMode.storageValue,
       'blur_radius': blurRadius,
@@ -364,6 +371,7 @@ class ProcessingSettings {
 
   factory ProcessingSettings.fromJson(Map<String, dynamic> json) {
     return ProcessingSettings(
+      template: FrameTemplateX.fromStorage(json['template'] as String?),
       targetRatio: RatioPresetX.fromStorage(json['target_ratio'] as String?),
       blurMode: BlurModeOptionX.fromStorage(json['blur_mode'] as String?),
       blurRadius: (json['blur_radius'] as num?)?.round() ?? 35,

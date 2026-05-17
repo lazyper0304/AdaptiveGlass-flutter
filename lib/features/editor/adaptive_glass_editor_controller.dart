@@ -5,23 +5,30 @@ import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
+import '../../models/frame_template.dart';
 import '../../models/processing_settings.dart';
 import '../../services/adaptive_glass_processor.dart';
 import 'models/editor_export_payload.dart';
 import 'models/export_format_option.dart';
 
 class AdaptiveGlassEditorController extends ChangeNotifier {
-  AdaptiveGlassEditorController({AdaptiveGlassProcessor? processor})
-    : _processor = processor ?? AdaptiveGlassProcessor();
+  AdaptiveGlassEditorController({
+    required FrameTemplate template,
+    AdaptiveGlassProcessor? processor,
+  }) : _template = template,
+       _processor = processor ?? AdaptiveGlassProcessor(),
+       _settings = _defaultSettingsForTemplate(template);
 
+  final FrameTemplate _template;
   final AdaptiveGlassProcessor _processor;
 
-  ProcessingSettings _settings = const ProcessingSettings();
+  ProcessingSettings _settings;
   ExportFormatOption _exportFormat = ExportFormatOption.png;
 
   Uint8List? _sourceBytes;
   Uint8List? _sourceBytesThumb;
   PreviewCompositeOutput? _previewComposite;
+  List<PaletteSwatch> _palette = const [];
   String? _sourceName;
   String _status = '选择一张图片开始';
   bool _processing = false;
@@ -36,8 +43,10 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
   int _lastPreviewMaxDimension = 1600;
 
   ProcessingSettings get settings => _settings;
+  FrameTemplate get template => _template;
   ExportFormatOption get exportFormat => _exportFormat;
   PreviewCompositeOutput? get previewComposite => _previewComposite;
+  List<PaletteSwatch> get palette => _palette;
   ExifSnapshot get previewExif => _sourceExif ?? const ExifSnapshot();
   String get status => _status;
   bool get processing => _processing;
@@ -78,6 +87,7 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     _sourceBytes = bytes;
     _sourceBytesThumb = null;
     _previewComposite = null;
+    _palette = const [];
     _sourceName = name;
     _sourceExif = null;
     _sourceExifFuture = null;
@@ -87,7 +97,11 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
 
     _warmUpExif(bytes, sourceRevision);
     _generateThumbnail(bytes, sourceRevision);
-    _schedulePreviewRender(previewMaxDimension, immediate: true);
+    if (_template == FrameTemplate.colorBorder) {
+      _extractPalette(bytes, sourceRevision);
+    } else {
+      _schedulePreviewRender(previewMaxDimension, immediate: true);
+    }
   }
 
   Future<void> _generateThumbnail(Uint8List bytes, int sourceRevision) async {
@@ -98,6 +112,26 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
         notifyListeners();
       }
     } catch (_) {}
+  }
+
+  Future<void> _extractPalette(Uint8List bytes, int sourceRevision) async {
+    try {
+      final palette = await _processor.extractPalette(bytes);
+      if (sourceRevision != _sourceRevision) {
+        return;
+      }
+      _palette = palette;
+      _processing = false;
+      _status = '预览已更新';
+      notifyListeners();
+    } catch (error) {
+      if (sourceRevision != _sourceRevision) {
+        return;
+      }
+      _processing = false;
+      _status = '颜色提取失败：$error';
+      notifyListeners();
+    }
   }
 
   static Uint8List _createThumbnail(Uint8List bytes) {
@@ -132,7 +166,7 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     required int previewMaxDimension,
   }) {
     _lastPreviewMaxDimension = previewMaxDimension;
-    _settings = settings;
+    _settings = _normalizeSettingsForTemplate(_template, settings);
 
     if (rerender && hasSource) {
       if (_previewInFlight && _previewComposite == null) {
@@ -156,7 +190,7 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     _lastPreviewMaxDimension = previewMaxDimension;
     try {
       final settings = ProcessingSettings.fromPresetString(raw);
-      _settings = settings;
+      _settings = _normalizeSettingsForTemplate(_template, settings);
       if (hasSource) {
         _processing = false;
         _status = '预设已应用';
@@ -310,6 +344,49 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
         _debounceTimer?.cancel();
         _queuePreviewRender(_currentTaskId, _lastPreviewMaxDimension);
       }
+    }
+  }
+
+  static ProcessingSettings _defaultSettingsForTemplate(FrameTemplate template) {
+    switch (template) {
+      case FrameTemplate.classic:
+        return const ProcessingSettings();
+      case FrameTemplate.colorBorder:
+        return const ProcessingSettings(
+          template: FrameTemplate.colorBorder,
+          blurRadius: 0,
+          blurBrightness: 0,
+          borderStyle: BorderStyleOption.none,
+          borderColor: MonoColor.white,
+          borderWidth: 0,
+          cornerRadius: 0,
+          shadowSize: 0,
+          contentScale: 100,
+          watermark: WatermarkSettings(enabled: false),
+        );
+    }
+  }
+
+  static ProcessingSettings _normalizeSettingsForTemplate(
+    FrameTemplate template,
+    ProcessingSettings settings,
+  ) {
+    final normalized = settings.copyWith(template: template);
+    switch (template) {
+      case FrameTemplate.classic:
+        return normalized;
+      case FrameTemplate.colorBorder:
+        return normalized.copyWith(
+          targetRatio: RatioPreset.original,
+          blurRadius: 0,
+          blurBrightness: 0,
+          borderStyle: BorderStyleOption.none,
+          borderColor: MonoColor.white,
+          borderWidth: 0,
+          cornerRadius: 0,
+          shadowSize: 0,
+          watermark: normalized.watermark.copyWith(enabled: false),
+        );
     }
   }
 }

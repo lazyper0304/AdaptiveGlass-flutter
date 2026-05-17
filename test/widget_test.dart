@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:adaptive_glass_flutter/features/editor/adaptive_glass_editor_controller.dart';
 import 'package:adaptive_glass_flutter/features/home/adaptive_glass_home_page.dart';
+import 'package:adaptive_glass_flutter/models/frame_template.dart';
 import 'package:adaptive_glass_flutter/main.dart';
 import 'package:adaptive_glass_flutter/models/processing_settings.dart';
 import 'package:adaptive_glass_flutter/services/adaptive_glass_processor.dart';
@@ -66,7 +67,10 @@ void main() {
     'watermark-only updates do not rerender preview raster layers',
     () async {
       final processor = _FakeProcessor();
-      final controller = AdaptiveGlassEditorController(processor: processor);
+      final controller = AdaptiveGlassEditorController(
+        template: FrameTemplate.classic,
+        processor: processor,
+      );
       addTearDown(controller.dispose);
 
       await controller.loadSource(
@@ -87,7 +91,10 @@ void main() {
 
   test('border updates do not rerender preview raster layers', () async {
     final processor = _FakeProcessor();
-    final controller = AdaptiveGlassEditorController(processor: processor);
+    final controller = AdaptiveGlassEditorController(
+      template: FrameTemplate.classic,
+      processor: processor,
+    );
     addTearDown(controller.dispose);
 
     await controller.loadSource(
@@ -108,10 +115,30 @@ void main() {
 
     expect(processor.previewCompositeCalls, 1);
   });
+
+  test('color border preview skips raster composite generation', () async {
+    final processor = _FakeProcessor();
+    final controller = AdaptiveGlassEditorController(
+      template: FrameTemplate.colorBorder,
+      processor: processor,
+    );
+    addTearDown(controller.dispose);
+
+    await controller.loadSource(
+      bytes: Uint8List.fromList(const [1, 2, 3]),
+      name: 'sample.jpg',
+      previewMaxDimension: 100,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    expect(processor.previewCompositeCalls, 0);
+    expect(processor.paletteCalls, 1);
+  });
 }
 
 class _FakeProcessor extends AdaptiveGlassProcessor {
   int previewCompositeCalls = 0;
+  int paletteCalls = 0;
 
   @override
   Future<ExifSnapshot> readExif(Uint8List sourceBytes) async {
@@ -138,6 +165,22 @@ class _FakeProcessor extends AdaptiveGlassProcessor {
         contentHeight: 80,
       ),
       renderScale: 1,
+    );
+  }
+
+  @override
+  Future<List<PaletteSwatch>> extractPalette(
+    Uint8List sourceBytes, {
+    int count = 5,
+  }) async {
+    paletteCalls += 1;
+    return List<PaletteSwatch>.generate(
+      count,
+      (index) => PaletteSwatch(
+        red: 20 + index,
+        green: 120 + index,
+        blue: 220 + index,
+      ),
     );
   }
 }
