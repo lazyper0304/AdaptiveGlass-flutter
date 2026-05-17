@@ -1,17 +1,18 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:go_transitions/go_transitions.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
-import 'features/home/adaptive_glass_home_page.dart' show themeMode;
+import 'features/home/adaptive_glass_home_page.dart'
+    show themeMode, initializeThemeModePreference;
 import 'app/app_router.dart';
 
 part 'main.g.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initializeThemeModePreference();
   await LiquidGlassWidgets.initialize();
   
   // 启用性能优化

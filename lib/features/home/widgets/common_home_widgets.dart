@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
@@ -49,7 +47,11 @@ class PageTitleRow extends StatelessWidget {
 }
 
 class FrostedPanel extends StatelessWidget {
-  const FrostedPanel({super.key, required this.child, this.padding = const EdgeInsets.all(20)});
+  const FrostedPanel({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(20),
+  });
 
   final Widget child;
   final EdgeInsets padding;
@@ -87,76 +89,86 @@ class ThemeModeSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final accent = homeAccentColor(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     const options = [
-      (mode: ThemeMode.system, icon: Icons.phone_android_rounded, label: '跟随系统'),
-      (mode: ThemeMode.light, icon: Icons.light_mode_rounded, label: '浅色模式'),
-      (mode: ThemeMode.dark, icon: Icons.dark_mode_rounded, label: '深色模式'),
+      (
+        mode: ThemeMode.system,
+        icon: Icons.phone_android_rounded,
+        label: '\u8ddf\u968f\u7cfb\u7edf',
+      ),
+      (
+        mode: ThemeMode.light,
+        icon: Icons.light_mode_rounded,
+        label: '\u6d45\u8272\u6a21\u5f0f',
+      ),
+      (
+        mode: ThemeMode.dark,
+        icon: Icons.dark_mode_rounded,
+        label: '\u6df1\u8272\u6a21\u5f0f',
+      ),
     ];
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          height: 48,
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            color: isDark ? const Color(0x551C2026) : const Color(0xB8FFFFFF),
-          ),
-          child: Row(
-            children: options
-                .map((option) {
-                  final isSelected = themeMode == option.mode;
-                  return Expanded(
-                    child: InkWell(
-                      onTap: () => onChanged(option.mode),
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        height: 40,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(20),
-                          color: isSelected ? accent.withValues(alpha: 0.24) : Colors.transparent,
-                          border: isSelected ? Border.all(color: accent.withValues(alpha: 0.62)) : null,
+    return SizedBox(
+      height: 44,
+      child: GlassPanel(
+        padding: const EdgeInsets.all(3),
+        shape: const LiquidRoundedSuperellipse(borderRadius: 22),
+        quality: GlassQuality.standard,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: options.map((option) {
+            final isSelected = themeMode == option.mode;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1),
+                child: InkWell(
+                  onTap: () => onChanged(option.mode),
+                  borderRadius: BorderRadius.circular(18),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      color: isSelected
+                          ? accent.withValues(alpha: 0.24)
+                          : Colors.transparent,
+                      border: isSelected
+                          ? Border.all(color: accent.withValues(alpha: 0.62))
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          option.icon,
+                          size: 16,
+                          color: isSelected
+                              ? accent
+                              : colors.onSurface.withValues(alpha: 0.62),
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                option.icon,
-                                size: 18,
-                                color: isSelected
-                                    ? accent
-                                    : colors.onSurface.withValues(alpha: 0.62),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                option.label,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(
-                                      color: isSelected
-                                          ? accent
-                                          : colors.onSurface
-                                              .withValues(alpha: 0.72),
-                                      fontWeight: isSelected
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                    ),
-                              ),
-                            ],
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            option.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: isSelected
+                                  ? accent
+                                  : colors.onSurface.withValues(alpha: 0.72),
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
-                  );
-                })
-                .toList(),
-          ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
         ),
       ),
     );

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
@@ -103,7 +102,9 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
 
   static Uint8List _createThumbnail(Uint8List bytes) {
     final decoded = img.decodeImage(bytes);
-    if (decoded == null) return bytes;
+    if (decoded == null) {
+      return bytes;
+    }
     final thumb = img.copyResize(
       decoded,
       width: 200,
@@ -130,21 +131,13 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     required bool rerender,
     required int previewMaxDimension,
   }) {
-    final previousSettings = _settings;
     _lastPreviewMaxDimension = previewMaxDimension;
     _settings = settings;
-    final shouldRenderRaster =
-        rerender &&
-        hasSource &&
-        ((_previewComposite == null && !_previewInFlight) ||
-            _needsRasterPreview(previousSettings, settings));
 
-    if (shouldRenderRaster) {
-      _processing = true;
-      _status = _previewComposite == null ? '正在生成预览...' : '正在刷新预览...';
-    } else if (rerender && hasSource) {
-      if (_previewInFlight) {
-        _status = _previewComposite == null ? '正在生成预览...' : '正在刷新预览...';
+    if (rerender && hasSource) {
+      if (_previewInFlight && _previewComposite == null) {
+        _processing = true;
+        _status = '正在生成预览...';
       } else {
         _processing = false;
         _status = _previewComposite == null ? '正在生成预览...' : '预览已更新';
@@ -152,11 +145,8 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     } else if (!hasSource) {
       _status = '设置已更新';
     }
-    notifyListeners();
 
-    if (shouldRenderRaster) {
-      _schedulePreviewRender(previewMaxDimension);
-    }
+    notifyListeners();
   }
 
   Future<bool> applyPresetString(
@@ -168,16 +158,12 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
       final settings = ProcessingSettings.fromPresetString(raw);
       _settings = settings;
       if (hasSource) {
-        _processing = true;
-        _status = _previewComposite == null ? '正在生成预览...' : '正在刷新预览...';
+        _processing = false;
+        _status = '预设已应用';
       } else {
         _status = '预设已加载';
       }
       notifyListeners();
-
-      if (hasSource) {
-        _schedulePreviewRender(previewMaxDimension);
-      }
       return true;
     } catch (error) {
       _processing = false;
@@ -325,14 +311,5 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
         _queuePreviewRender(_currentTaskId, _lastPreviewMaxDimension);
       }
     }
-  }
-
-  bool _needsRasterPreview(
-    ProcessingSettings previous,
-    ProcessingSettings next,
-  ) {
-    // 完全禁用自动预览生成，所有效果都在预览层实时渲染
-    // 导出时才生成高质量图像
-    return false;
   }
 }

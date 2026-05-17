@@ -22,12 +22,14 @@ class ProcessingOutput {
 
 class PreviewCompositeOutput {
   const PreviewCompositeOutput({
+    required this.compositeBytes,
     required this.backgroundBytes,
     required this.foregroundBytes,
     required this.layoutInfo,
     required this.renderScale,
   });
 
+  final Uint8List compositeBytes;
   final Uint8List backgroundBytes;
   final Uint8List foregroundBytes;
   final LayoutInfo layoutInfo;
@@ -132,6 +134,7 @@ class AdaptiveGlassProcessor {
         });
 
     return PreviewCompositeOutput(
+      compositeBytes: rasterResult['composite_bytes']! as Uint8List,
       backgroundBytes: rasterResult['background_bytes']! as Uint8List,
       foregroundBytes: rasterResult['foreground_bytes']! as Uint8List,
       layoutInfo: LayoutInfo.fromJson(
@@ -579,8 +582,19 @@ Future<Map<String, Object?>> _processPreviewCompositeRasterTask(
     originalSettings,
     maxDimension,
   );
+  final composite = _composePreviewImage(
+    background: layers.background.clone(),
+    foreground: layers.foreground,
+    layoutInfo: layers.layoutInfo,
+    settings: layers.settings,
+  );
 
   return <String, Object?>{
+    'composite_bytes': _encodeRaster(
+      composite,
+      _RasterOutputFormat.jpeg.name,
+      88,
+    ),
     'background_bytes': _encodeRaster(
       layers.background,
       _RasterOutputFormat.jpeg.name,
@@ -590,6 +604,55 @@ Future<Map<String, Object?>> _processPreviewCompositeRasterTask(
     'layout': layers.layoutInfo.toJson(),
     'render_scale': layers.renderScale,
   };
+}
+
+img.Image _composePreviewImage({
+  required img.Image background,
+  required img.Image foreground,
+  required LayoutInfo layoutInfo,
+  required ProcessingSettings settings,
+}) {
+  var foregroundWithBorder = foreground;
+  if (settings.borderStyle != BorderStyleOption.none) {
+    foregroundWithBorder = _applyBorder(foregroundWithBorder, settings);
+  }
+
+  if (settings.shadowSize > 0) {
+    final pad = settings.shadowSize * 3;
+    final shadowLayer = img.Image(
+      width: layoutInfo.contentWidth + pad * 2,
+      height: layoutInfo.contentHeight + pad * 2,
+      numChannels: 4,
+    )..clear(img.ColorRgba8(0, 0, 0, 0));
+
+    img.fillRect(
+      shadowLayer,
+      x1: pad,
+      y1: pad,
+      x2: pad + layoutInfo.contentWidth - 1,
+      y2: pad + layoutInfo.contentHeight - 1,
+      color: img.ColorRgba8(0, 0, 0, 180),
+      radius: settings.borderStyle == BorderStyleOption.rounded
+          ? settings.cornerRadius
+          : 0,
+    );
+    img.gaussianBlur(shadowLayer, radius: settings.shadowSize);
+    img.compositeImage(
+      background,
+      shadowLayer,
+      dstX: layoutInfo.contentX - pad,
+      dstY: layoutInfo.contentY - pad,
+    );
+  }
+
+  img.compositeImage(
+    background,
+    foregroundWithBorder,
+    dstX: layoutInfo.contentX,
+    dstY: layoutInfo.contentY,
+  );
+
+  return background;
 }
 
 enum _RasterOutputFormat { png, jpeg }
