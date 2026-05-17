@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -7,9 +6,11 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../../models/frame_template.dart';
 import '../../../models/processing_settings.dart';
-import '../../../services/adaptive_glass_processor.dart';
+import '../../../services/frame_processing_models.dart';
+import 'previews/classic_frame_preview.dart';
+import 'previews/color_border_preview.dart';
 
-class EditorPreviewCard extends StatelessWidget {
+class EditorPreviewCard extends StatefulWidget {
   const EditorPreviewCard({
     super.key,
     required this.template,
@@ -32,6 +33,62 @@ class EditorPreviewCard extends StatelessWidget {
   final Uint8List? sourceBytesThumb;
 
   @override
+  State<EditorPreviewCard> createState() => _EditorPreviewCardState();
+}
+
+class _EditorPreviewCardState extends State<EditorPreviewCard> {
+  ui.Image? _colorBorderImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadColorBorderImageIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(covariant EditorPreviewCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.sourceBytes, widget.sourceBytes) ||
+        oldWidget.template != widget.template) {
+      _disposeColorBorderImage();
+      _loadColorBorderImageIfNeeded();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposeColorBorderImage();
+    super.dispose();
+  }
+
+  Future<void> _loadColorBorderImageIfNeeded() async {
+    if (widget.template != FrameTemplate.colorBorder ||
+        widget.sourceBytes == null) {
+      return;
+    }
+
+    try {
+      final codec = await ui.instantiateImageCodec(
+        widget.sourceBytes!,
+        allowUpscaling: false,
+      );
+      final frame = await codec.getNextFrame();
+      if (!mounted) {
+        frame.image.dispose();
+        return;
+      }
+      setState(() {
+        _colorBorderImage = frame.image;
+      });
+    } catch (_) {}
+  }
+
+  void _disposeColorBorderImage() {
+    _colorBorderImage?.dispose();
+    _colorBorderImage = null;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -50,139 +107,56 @@ class EditorPreviewCard extends StatelessWidget {
         lightIntensity: isDark ? 1.2 : 0.82,
       ),
       child: GestureDetector(
-        onTap: onTap,
+        onTap: widget.onTap,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(22),
           child: ColoredBox(
             color: isDark ? const Color(0x5511161E) : const Color(0x66FFFFFF),
-            child: Center(
-              child: sourceBytes == null
-                  ? Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        GlassButton(
-                          icon: const Icon(Icons.add_photo_alternate_rounded),
-                          onTap: onTap,
-                          width: 70,
-                          height: 70,
-                          iconSize: 32,
-                          label: '导入图片',
-                          quality: GlassQuality.standard,
-                          glowColor: accent.withValues(alpha: 0.4),
-                        ),
-                        const SizedBox(height: 18),
-                        Text(
-                          '点击导入图片',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(
-                                color: colors.onSurface.withValues(alpha: 0.86),
-                                fontWeight: FontWeight.w800,
-                              ),
-                        ),
-                      ],
-                    )
-                  : _RealtimePreviewLayer(
-                      template: template,
-                      preview: preview,
-                      palette: palette,
-                      settings: settings,
-                      exif: exif,
-                      sourceBytes: sourceBytes!,
-                      thumbBytes: sourceBytesThumb,
-                    ),
-            ),
+            child: Center(child: _buildPreviewContent(colors, accent)),
           ),
         ),
       ),
     );
   }
-}
 
-class _RealtimePreviewLayer extends StatefulWidget {
-  const _RealtimePreviewLayer({
-    required this.template,
-    required this.preview,
-    required this.palette,
-    required this.settings,
-    required this.exif,
-    required this.sourceBytes,
-    this.thumbBytes,
-  });
-
-  final FrameTemplate template;
-  final PreviewCompositeOutput? preview;
-  final List<PaletteSwatch> palette;
-  final ProcessingSettings settings;
-  final ExifSnapshot exif;
-  final Uint8List sourceBytes;
-  final Uint8List? thumbBytes;
-
-  @override
-  State<_RealtimePreviewLayer> createState() => _RealtimePreviewLayerState();
-}
-
-class _RealtimePreviewLayerState extends State<_RealtimePreviewLayer> {
-  ui.Image? _sourceImage;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSourceImage();
-  }
-
-  @override
-  void didUpdateWidget(covariant _RealtimePreviewLayer oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.sourceBytes, widget.sourceBytes)) {
-      _disposeSourceImage();
-      _loadSourceImage();
-    }
-  }
-
-  Future<void> _loadSourceImage() async {
-    try {
-      final codec = await ui.instantiateImageCodec(
-        widget.sourceBytes,
-        allowUpscaling: false,
+  Widget _buildPreviewContent(ColorScheme colors, Color accent) {
+    final sourceBytes = widget.sourceBytes;
+    if (sourceBytes == null) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GlassButton(
+            icon: const Icon(Icons.add_photo_alternate_rounded),
+            onTap: widget.onTap,
+            width: 70,
+            height: 70,
+            iconSize: 32,
+            label: '导入图片',
+            quality: GlassQuality.standard,
+            glowColor: accent.withValues(alpha: 0.4),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            '点击导入图片',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: colors.onSurface.withValues(alpha: 0.86),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       );
-      final frame = await codec.getNextFrame();
-      if (!mounted) {
-        frame.image.dispose();
-        return;
-      }
-      setState(() {
-        _sourceImage = frame.image;
-      });
-    } catch (_) {}
-  }
+    }
 
-  @override
-  void dispose() {
-    _disposeSourceImage();
-    super.dispose();
-  }
-
-  void _disposeSourceImage() {
-    _sourceImage?.dispose();
-    _sourceImage = null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
     if (widget.template == FrameTemplate.colorBorder) {
-      final sourceImage = _sourceImage;
-      if (sourceImage != null) {
-        return InteractiveViewer(
-          minScale: 0.5,
-          maxScale: 4,
-          child: _ColorBorderGpuPreview(
-            image: sourceImage,
-            palette: widget.palette,
-          ),
+      final image = _colorBorderImage;
+      if (image != null) {
+        return ColorBorderPreview(
+          image: image,
+          palette: widget.palette,
+          settings: widget.settings,
         );
       }
-
-      final thumbBytes = widget.thumbBytes;
+      final thumbBytes = widget.sourceBytesThumb;
       if (thumbBytes != null) {
         return Center(
           child: Image.memory(
@@ -192,760 +166,15 @@ class _RealtimePreviewLayerState extends State<_RealtimePreviewLayer> {
           ),
         );
       }
-
       return const Center(child: CircularProgressIndicator());
     }
 
-    final sourceImage = _sourceImage;
-    if (sourceImage == null) {
-      final thumbBytes = widget.thumbBytes;
-      if (thumbBytes != null) {
-        return Center(
-          child: Image.memory(
-            thumbBytes,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.medium,
-          ),
-        );
-      }
-      final preview = widget.preview;
-      if (preview != null) {
-        return Center(
-          child: Image.memory(
-            preview.compositeBytes,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.medium,
-          ),
-        );
-      }
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    final layout = _calculateLayoutInfo(
-      sourceWidth: sourceImage.width,
-      sourceHeight: sourceImage.height,
+    return ClassicFramePreview(
+      preview: widget.preview,
       settings: widget.settings,
-    );
-
-    return InteractiveViewer(
-      minScale: 0.5,
-      maxScale: 4,
-      child: AspectRatio(
-        aspectRatio: layout.targetWidth / layout.targetHeight,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final viewScale = constraints.maxWidth / layout.targetWidth;
-            final borderWidth =
-                widget.settings.borderStyle == BorderStyleOption.none
-                ? 0.0
-                : widget.settings.borderWidth * viewScale;
-            final borderRadius =
-                widget.settings.borderStyle == BorderStyleOption.rounded
-                ? widget.settings.cornerRadius * viewScale
-                : 0.0;
-            final shadowBlur = widget.settings.shadowSize * viewScale;
-            final radius = BorderRadius.circular(borderRadius);
-
-            return RepaintBoundary(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _RealtimeBackground(
-                    image: sourceImage,
-                    settings: widget.settings,
-                  ),
-                  Positioned(
-                    left: layout.contentX * viewScale,
-                    top: layout.contentY * viewScale,
-                    width: layout.contentWidth * viewScale,
-                    height: layout.contentHeight * viewScale,
-                    child: _buildForeground(
-                      image: sourceImage,
-                      radius: radius,
-                      borderWidth: borderWidth,
-                      shadowBlur: shadowBlur,
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _WatermarkPreviewPainter(
-                          settings: widget.settings.watermark,
-                          exif: widget.exif,
-                          layoutInfo: layout,
-                          renderScale: 1.0,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
+      exif: widget.exif,
+      sourceBytes: sourceBytes,
+      thumbBytes: widget.sourceBytesThumb,
     );
   }
-
-  Widget _buildForeground({
-    required ui.Image image,
-    required BorderRadius radius,
-    required double borderWidth,
-    required double shadowBlur,
-  }) {
-    Widget imageWidget = RawImage(
-      image: image,
-      fit: BoxFit.fill,
-      filterQuality: FilterQuality.medium,
-    );
-
-    final decoration = BoxDecoration(
-      color: Colors.transparent,
-      borderRadius: widget.settings.borderStyle == BorderStyleOption.rounded
-          ? radius
-          : null,
-      boxShadow: shadowBlur <= 0
-          ? null
-          : [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.42),
-                blurRadius: shadowBlur,
-              ),
-            ],
-    );
-
-    final foregroundDecoration = borderWidth <= 0
-        ? null
-        : BoxDecoration(
-            borderRadius:
-                widget.settings.borderStyle == BorderStyleOption.rounded
-                ? radius
-                : null,
-            border: Border.all(
-              color: _monoColor(widget.settings.borderColor),
-              width: borderWidth,
-            ),
-          );
-
-    if (widget.settings.borderStyle == BorderStyleOption.rounded) {
-      imageWidget = ClipRRect(borderRadius: radius, child: imageWidget);
-    }
-
-    return Container(
-      decoration: decoration,
-      foregroundDecoration: foregroundDecoration,
-      child: imageWidget,
-    );
-  }
-}
-
-class _ColorBorderGpuPreview extends StatelessWidget {
-  const _ColorBorderGpuPreview({
-    required this.image,
-    required this.palette,
-  });
-
-  final ui.Image image;
-  final List<PaletteSwatch> palette;
-
-  @override
-  Widget build(BuildContext context) {
-    final metrics = _calculateColorBorderMetrics(
-      image.width.toDouble(),
-      image.height.toDouble(),
-    );
-    final swatches = palette.isEmpty
-        ? List<PaletteSwatch>.filled(
-            5,
-            const PaletteSwatch(red: 236, green: 226, blue: 214),
-          )
-        : palette;
-
-    return AspectRatio(
-      aspectRatio: metrics.canvasWidth / metrics.canvasHeight,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final scale = constraints.maxWidth / metrics.canvasWidth;
-          final photoRect = Rect.fromLTWH(
-            metrics.photoX * scale,
-            metrics.photoY * scale,
-            metrics.photoWidth * scale,
-            metrics.photoHeight * scale,
-          );
-          final circleSize = metrics.circleRadius * 2 * scale;
-          final circleTop = metrics.circleCenterY * scale - (circleSize / 2);
-          final labelWidth = metrics.labelWidth * scale;
-          final labelFontSize = math.max(7.0, 10.0 * scale);
-
-          return DecoratedBox(
-            decoration: const BoxDecoration(color: Colors.white),
-            child: Stack(
-              children: [
-                Positioned.fromRect(
-                  rect: photoRect,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 22 * scale,
-                          offset: Offset(0, 8 * scale),
-                        ),
-                      ],
-                    ),
-                    child: RawImage(
-                      image: image,
-                      fit: BoxFit.fill,
-                      filterQuality: FilterQuality.medium,
-                    ),
-                  ),
-                ),
-                for (var index = 0; index < swatches.length; index++)
-                  Positioned(
-                    left: (metrics.circleCenters[index] * scale) - (labelWidth / 2),
-                    top: circleTop,
-                    width: labelWidth,
-                    child: Column(
-                      children: [
-                        Container(
-                          width: circleSize,
-                          height: circleSize,
-                          decoration: BoxDecoration(
-                            color: swatches[index].toColor(),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-                              width: math.max(2, 4 * scale),
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 10 * scale),
-                        SizedBox(
-                          width: labelWidth,
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Text(
-                              'RGB ${swatches[index].red},${swatches[index].green},${swatches[index].blue}',
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              softWrap: false,
-                              style: TextStyle(
-                                color: const Color(0xFF6D6259),
-                                fontSize: labelFontSize,
-                                fontWeight: FontWeight.w700,
-                                height: 1.1,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ColorBorderMetrics {
-  const _ColorBorderMetrics({
-    required this.canvasWidth,
-    required this.canvasHeight,
-    required this.photoX,
-    required this.photoY,
-    required this.photoWidth,
-    required this.photoHeight,
-    required this.circleRadius,
-    required this.circleCenterY,
-    required this.labelWidth,
-    required this.circleCenters,
-  });
-
-  final double canvasWidth;
-  final double canvasHeight;
-  final double photoX;
-  final double photoY;
-  final double photoWidth;
-  final double photoHeight;
-  final double circleRadius;
-  final double circleCenterY;
-  final double labelWidth;
-  final List<double> circleCenters;
-}
-
-_ColorBorderMetrics _calculateColorBorderMetrics(
-  double sourceWidth,
-  double sourceHeight,
-) {
-  final contentWidth = sourceWidth;
-  final contentHeight = sourceHeight;
-  final unit = math.max(20.0, math.min(contentWidth, contentHeight) * 0.06);
-  final outerBorder = math.max(14.0, unit * 0.45);
-  final mattePadding = unit;
-  final paletteHeight = math.max(120.0, contentHeight * 0.24);
-  final canvasWidth = contentWidth + (outerBorder + mattePadding) * 2;
-  final canvasHeight =
-      contentHeight + (outerBorder + mattePadding) * 2 + paletteHeight;
-  final circleRadius = math.max(12.0, math.min(28.0, canvasWidth / 30));
-  final circleCenterY =
-      outerBorder + mattePadding + contentHeight + math.max(circleRadius + 8, paletteHeight / 3);
-  final sidePadding = outerBorder + math.max(circleRadius, 18);
-  final usableWidth = canvasWidth - sidePadding * 2;
-  final slotWidth = usableWidth / 4;
-  final centers = List<double>.generate(
-    5,
-    (index) => sidePadding + (slotWidth * index),
-  );
-  final labelWidth = math.max(circleRadius * 2.2, slotWidth * 1.08);
-
-  return _ColorBorderMetrics(
-    canvasWidth: canvasWidth,
-    canvasHeight: canvasHeight,
-    photoX: outerBorder + mattePadding,
-    photoY: outerBorder + mattePadding,
-    photoWidth: contentWidth,
-    photoHeight: contentHeight,
-    circleRadius: circleRadius,
-    circleCenterY: circleCenterY,
-    labelWidth: labelWidth,
-    circleCenters: centers,
-  );
-}
-
-class _RealtimeBackground extends StatelessWidget {
-  const _RealtimeBackground({required this.image, required this.settings});
-
-  final ui.Image image;
-  final ProcessingSettings settings;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget child = SizedBox.expand(
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: image.width.toDouble(),
-          height: image.height.toDouble(),
-          child: RawImage(
-            image: image,
-            fit: BoxFit.fill,
-            filterQuality: FilterQuality.medium,
-          ),
-        ),
-      ),
-    );
-
-    final brightnessFactor = math.max(
-      0.0,
-      1.0 + (settings.blurBrightness / 100),
-    );
-    if ((brightnessFactor - 1.0).abs() > 0.001) {
-      child = ColorFiltered(
-        colorFilter: ColorFilter.matrix(<double>[
-          brightnessFactor,
-          0,
-          0,
-          0,
-          0,
-          0,
-          brightnessFactor,
-          0,
-          0,
-          0,
-          0,
-          0,
-          brightnessFactor,
-          0,
-          0,
-          0,
-          0,
-          0,
-          1,
-          0,
-        ]),
-        child: child,
-      );
-    }
-
-    final sigma = math.max(0.0, settings.blurRadius / 4);
-    if (sigma > 0) {
-      child = ImageFiltered(
-        imageFilter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-        child: child,
-      );
-    }
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        child,
-        if (settings.blurMode == BlurModeOption.dark)
-          ColoredBox(color: Colors.black.withValues(alpha: 100 / 255)),
-        if (settings.blurMode == BlurModeOption.light)
-          ColoredBox(color: Colors.white.withValues(alpha: 80 / 255)),
-      ],
-    );
-  }
-}
-
-LayoutInfo _calculateLayoutInfo({
-  required int sourceWidth,
-  required int sourceHeight,
-  required ProcessingSettings settings,
-}) {
-  final targetSize = _calculateTargetSize(
-    sourceWidth,
-    sourceHeight,
-    settings.targetRatio,
-  );
-  final targetWidth = targetSize.$1;
-  final targetHeight = targetSize.$2;
-  final fitScale =
-      math.min(targetWidth / sourceWidth, targetHeight / sourceHeight) *
-      (settings.contentScale / 100);
-  final contentWidth = math.max(1, (sourceWidth * fitScale).round());
-  final contentHeight = math.max(1, (sourceHeight * fitScale).round());
-
-  return LayoutInfo(
-    targetWidth: targetWidth,
-    targetHeight: targetHeight,
-    contentX: (targetWidth - contentWidth) ~/ 2,
-    contentY: (targetHeight - contentHeight) ~/ 2,
-    contentWidth: contentWidth,
-    contentHeight: contentHeight,
-  );
-}
-
-(int, int) _calculateTargetSize(
-  int originalWidth,
-  int originalHeight,
-  RatioPreset ratio,
-) {
-  if (ratio == RatioPreset.original || ratio.dimensions == null) {
-    return (originalWidth, originalHeight);
-  }
-
-  final dims = ratio.dimensions!;
-  final targetHeightByWidth = (originalWidth * (dims.height / dims.width))
-      .round();
-  if (targetHeightByWidth >= originalHeight) {
-    return (originalWidth, targetHeightByWidth);
-  }
-
-  final targetWidthByHeight = (originalHeight * (dims.width / dims.height))
-      .round();
-  return (targetWidthByHeight, originalHeight);
-}
-
-class _WatermarkPreviewPainter extends CustomPainter {
-  const _WatermarkPreviewPainter({
-    required this.settings,
-    required this.exif,
-    required this.layoutInfo,
-    required this.renderScale,
-  });
-
-  final WatermarkSettings settings;
-  final ExifSnapshot exif;
-  final LayoutInfo layoutInfo;
-  final double renderScale;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (!settings.enabled) {
-      return;
-    }
-
-    final scale = size.width / layoutInfo.targetWidth;
-    canvas.save();
-    canvas.scale(scale);
-    _paintInPreviewPixels(canvas);
-    canvas.restore();
-  }
-
-  void _paintInPreviewPixels(Canvas canvas) {
-    final templateText =
-        settings.text.contains('{') && settings.text.contains('}')
-        ? _formatTemplate(settings.text, exif)
-        : settings.text;
-    final exifModel = exif.model.isNotEmpty ? exif.model : exif.make;
-    final infoParts = <String>[
-      if (exif.iso.isNotEmpty) 'ISO${exif.iso}',
-      if (exif.fNumber.isNotEmpty) 'f/${exif.fNumber}',
-      if (exif.exposureTime.isNotEmpty) '${exif.exposureTime}s',
-      if (exif.focalLength.isNotEmpty) '${exif.focalLength}mm',
-    ];
-    final exifInfo = infoParts.join('  ');
-
-    var modelText = '';
-    var infoText = '';
-    switch (settings.textMode) {
-      case WatermarkModeOption.replace:
-        modelText = templateText.isNotEmpty ? templateText : '自定义文本';
-        break;
-      case WatermarkModeOption.fallback:
-        if (exifModel.isNotEmpty) {
-          modelText = exifModel;
-          infoText = exifInfo;
-        } else {
-          modelText = templateText.isNotEmpty ? templateText : '无 EXIF 信息';
-        }
-        break;
-      case WatermarkModeOption.append:
-        if (exifModel.isNotEmpty) {
-          modelText = exifModel;
-          infoText = exifInfo;
-          if (templateText.isNotEmpty) {
-            infoText = infoText.isNotEmpty
-                ? '$infoText  |  $templateText'
-                : templateText;
-          }
-        } else {
-          modelText = templateText;
-        }
-        break;
-    }
-
-    if (modelText.isEmpty && infoText.isEmpty) {
-      return;
-    }
-
-    final borderTop = layoutInfo.contentY.toDouble();
-    final borderBottom =
-        layoutInfo.targetHeight -
-        (layoutInfo.contentY + layoutInfo.contentHeight).toDouble();
-    final borderLeft = layoutInfo.contentX.toDouble();
-    final borderRight =
-        layoutInfo.targetWidth -
-        (layoutInfo.contentX + layoutInfo.contentWidth).toDouble();
-
-    var baseFontSize = _scaledPreviewSetting(
-      settings.fontSize,
-      renderScale,
-    ).toDouble();
-    if (settings.autoSize) {
-      final isVertical =
-          settings.position.storageValue.contains('top') ||
-          settings.position.storageValue.contains('bottom');
-      if (settings.position == WatermarkPosition.manual) {
-        baseFontSize = layoutInfo.targetWidth * 0.03;
-      } else if (isVertical) {
-        final refBorder = math.max(borderTop, borderBottom);
-        baseFontSize = refBorder > 20
-            ? refBorder * 0.35
-            : layoutInfo.targetWidth * 0.03;
-      } else {
-        final refBorder = math.max(borderLeft, borderRight);
-        if (settings.position.storageValue.contains('left') ||
-            settings.position.storageValue.contains('right')) {
-          baseFontSize = refBorder > 20
-              ? math.min(refBorder * 0.15, layoutInfo.targetHeight * 0.05)
-              : layoutInfo.targetWidth * 0.03;
-        } else {
-          baseFontSize = layoutInfo.targetWidth * 0.03;
-        }
-      }
-      baseFontSize = math.max(12.0, baseFontSize);
-    }
-
-    baseFontSize = math.max(10.0, baseFontSize * settings.sizeScale);
-    final infoFontSize = math.max(10.0, baseFontSize * 0.7);
-    final textAlpha = settings.opacity / 100;
-    final shadowAlpha = 0.5 * textAlpha;
-    final textColor = settings.textColor == MonoColor.white
-        ? Colors.white.withValues(alpha: textAlpha)
-        : Colors.black.withValues(alpha: textAlpha);
-    final shadowColor = settings.textColor == MonoColor.white
-        ? Colors.black.withValues(alpha: shadowAlpha)
-        : Colors.white.withValues(alpha: shadowAlpha);
-    final fontFamily = settings.fontFamily == WatermarkFontFamily.smileySans
-        ? 'SmileySans'
-        : null;
-
-    final modelPainter = _buildTextPainter(
-      modelText,
-      TextStyle(
-        color: textColor,
-        fontSize: baseFontSize,
-        fontWeight: FontWeight.w700,
-        fontFamily: fontFamily,
-      ),
-    );
-    final infoPainter = _buildTextPainter(
-      infoText,
-      TextStyle(
-        color: textColor,
-        fontSize: infoFontSize,
-        fontWeight: FontWeight.w500,
-        fontFamily: fontFamily,
-      ),
-    );
-    final modelShadowPainter = _buildTextPainter(
-      modelText,
-      TextStyle(
-        color: shadowColor,
-        fontSize: baseFontSize,
-        fontWeight: FontWeight.w700,
-        fontFamily: fontFamily,
-      ),
-    );
-    final infoShadowPainter = _buildTextPainter(
-      infoText,
-      TextStyle(
-        color: shadowColor,
-        fontSize: infoFontSize,
-        fontWeight: FontWeight.w500,
-        fontFamily: fontFamily,
-      ),
-    );
-
-    final gap = (modelText.isNotEmpty && infoText.isNotEmpty)
-        ? baseFontSize * 0.8
-        : 0.0;
-    final totalWidth = modelPainter.width + gap + infoPainter.width;
-    final maxHeight = math.max(modelPainter.height, infoPainter.height);
-
-    final position = _watermarkPosition(
-      settings.position,
-      layoutInfo,
-      borderTop,
-      borderBottom,
-      borderLeft,
-      borderRight,
-      totalWidth,
-      maxHeight,
-    );
-    final x =
-        position.dx + _scaledPreviewSetting(settings.customX, renderScale);
-    final y =
-        position.dy + _scaledPreviewSetting(settings.customY, renderScale);
-
-    if (modelText.isNotEmpty) {
-      final modelY = y + (maxHeight - modelPainter.height);
-      modelShadowPainter.paint(canvas, Offset(x + 1, modelY + 1));
-      modelPainter.paint(canvas, Offset(x, modelY));
-    }
-
-    if (infoText.isNotEmpty) {
-      final infoX = x + modelPainter.width + gap;
-      final infoY = y + (maxHeight - infoPainter.height);
-      infoShadowPainter.paint(canvas, Offset(infoX + 1, infoY + 1));
-      infoPainter.paint(canvas, Offset(infoX, infoY));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _WatermarkPreviewPainter oldDelegate) => true;
-}
-
-Offset _watermarkPosition(
-  WatermarkPosition position,
-  LayoutInfo layoutInfo,
-  double borderTop,
-  double borderBottom,
-  double borderLeft,
-  double borderRight,
-  double totalWidth,
-  double maxHeight,
-) {
-  double x;
-  double y;
-  switch (position) {
-    case WatermarkPosition.topCenter:
-    case WatermarkPosition.topLeft:
-    case WatermarkPosition.topRight:
-      y = borderTop > 20 ? (borderTop / 2) - (maxHeight / 2) : 20;
-      break;
-    case WatermarkPosition.bottomCenter:
-    case WatermarkPosition.bottomLeft:
-    case WatermarkPosition.bottomRight:
-      if (borderBottom > 20) {
-        final startY = layoutInfo.contentY + layoutInfo.contentHeight;
-        y = startY + (borderBottom / 2) - (maxHeight / 2);
-      } else {
-        y = layoutInfo.targetHeight - maxHeight - 20;
-      }
-      break;
-    case WatermarkPosition.center:
-    case WatermarkPosition.centerLeft:
-    case WatermarkPosition.centerRight:
-    case WatermarkPosition.manual:
-      y = (layoutInfo.targetHeight - maxHeight) / 2;
-      break;
-  }
-
-  switch (position) {
-    case WatermarkPosition.topLeft:
-    case WatermarkPosition.bottomLeft:
-      x = 20;
-      break;
-    case WatermarkPosition.topRight:
-    case WatermarkPosition.bottomRight:
-      x = layoutInfo.targetWidth - totalWidth - 20;
-      break;
-    case WatermarkPosition.centerLeft:
-      x = borderLeft > 20 ? (borderLeft / 2) - (totalWidth / 2) : 20;
-      break;
-    case WatermarkPosition.centerRight:
-      if (borderRight > 20) {
-        final startX = layoutInfo.contentX + layoutInfo.contentWidth;
-        x = startX + (borderRight / 2) - (totalWidth / 2);
-      } else {
-        x = layoutInfo.targetWidth - totalWidth - 20;
-      }
-      break;
-    case WatermarkPosition.topCenter:
-    case WatermarkPosition.bottomCenter:
-    case WatermarkPosition.center:
-    case WatermarkPosition.manual:
-      x = (layoutInfo.targetWidth - totalWidth) / 2;
-      break;
-  }
-
-  return Offset(x, y);
-}
-
-TextPainter _buildTextPainter(String text, TextStyle style) {
-  final painter = TextPainter(
-    text: TextSpan(text: text, style: style),
-    textDirection: TextDirection.ltr,
-    maxLines: 1,
-  );
-  painter.layout();
-  return painter;
-}
-
-int _scaledPreviewSetting(int value, double renderScale) {
-  if (value == 0) {
-    return 0;
-  }
-
-  final scaled = (value * renderScale).round();
-  return value > 0 ? math.max(1, scaled) : scaled;
-}
-
-Color _monoColor(MonoColor color) {
-  return color == MonoColor.white ? Colors.white : Colors.black;
-}
-
-String _formatTemplate(String template, ExifSnapshot exif) {
-  return template
-      .replaceAll('{Model}', exif.model)
-      .replaceAll('{Make}', exif.make)
-      .replaceAll('{ISO}', exif.iso.isNotEmpty ? 'ISO${exif.iso}' : '')
-      .replaceAll(
-        '{FNumber}',
-        exif.fNumber.isNotEmpty ? 'f/${exif.fNumber}' : '',
-      )
-      .replaceAll(
-        '{ExposureTime}',
-        exif.exposureTime.isNotEmpty ? '${exif.exposureTime}s' : '',
-      )
-      .replaceAll(
-        '{FocalLength}',
-        exif.focalLength.isNotEmpty ? '${exif.focalLength}mm' : '',
-      );
 }

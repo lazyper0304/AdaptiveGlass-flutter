@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 import '../../models/frame_template.dart';
 import '../../models/processing_settings.dart';
 import '../../services/adaptive_glass_processor.dart';
+import '../../services/frame_processing_models.dart';
 import 'models/editor_export_payload.dart';
 import 'models/export_format_option.dart';
 

@@ -6,6 +6,7 @@ import 'package:adaptive_glass_flutter/models/frame_template.dart';
 import 'package:adaptive_glass_flutter/main.dart';
 import 'package:adaptive_glass_flutter/models/processing_settings.dart';
 import 'package:adaptive_glass_flutter/services/adaptive_glass_processor.dart';
+import 'package:adaptive_glass_flutter/services/frame_processing_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
