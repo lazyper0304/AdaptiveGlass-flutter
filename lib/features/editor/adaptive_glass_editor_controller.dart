@@ -227,7 +227,7 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
     }
 
     final baseName = p.basenameWithoutExtension(sourceName);
-    final fileName = '${baseName}_光影相框${_exportFormat.extension}';
+    final fileName = '${baseName}_AdaptiveGlass${_exportFormat.extension}';
 
     _processing = true;
     _status = '正在导出完整分辨率图片...';

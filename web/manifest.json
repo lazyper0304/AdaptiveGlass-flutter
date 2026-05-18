@@ -1,11 +1,11 @@
-﻿{
-    "name": "光影相框",
-    "short_name": "光影相框",
+{
+    "name": "AdaptiveGlass",
+    "short_name": "AdaptiveGlass",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "光影相框图片处理工具。",
+    "description": "AdaptiveGlass图片处理工具。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

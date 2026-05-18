@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:go_transitions/go_transitions.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
@@ -59,7 +59,7 @@ class _AppState extends State<App> {
     return Watch((context) {
       return MaterialApp.router(
         debugShowCheckedModeBanner: false,
-        title: '光影相框',
+        title: 'AdaptiveGlass',
         themeMode: themeMode.value,
         theme: _buildTheme(lightScheme),
         darkTheme: _buildTheme(darkScheme),
