@@ -45,17 +45,34 @@ class AdaptiveGlassHomePage extends StatelessWidget {
   }
 }
 
-class _AnimatedNavigationShell extends StatelessWidget {
+class _AnimatedNavigationShell extends StatefulWidget {
   const _AnimatedNavigationShell({required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
+
+  @override
+  State<_AnimatedNavigationShell> createState() => _AnimatedNavigationShellState();
+}
+
+class _AnimatedNavigationShellState extends State<_AnimatedNavigationShell> {
+  int _previousIndex = 0;
+
+  @override
+  void didUpdateWidget(covariant _AnimatedNavigationShell oldWidget) {
+    if (widget.navigationShell.currentIndex != oldWidget.navigationShell.currentIndex) {
+      setState(() {
+        _previousIndex = oldWidget.navigationShell.currentIndex;
+      });
+    }
+    super.didUpdateWidget(oldWidget);
+  }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       transitionBuilder: (child, animation) {
-        final isForward = navigationShell.currentIndex > navigationShell.previousIndex;
+        final isForward = widget.navigationShell.currentIndex > _previousIndex;
         final slideAnimation = Tween<Offset>(
           begin: isForward ? const Offset(0.15, 0) : const Offset(-0.15, 0),
           end: Offset.zero,
@@ -77,8 +94,8 @@ class _AnimatedNavigationShell extends StatelessWidget {
         );
       },
       child: KeyedSubtree(
-        key: ValueKey(navigationShell.currentIndex),
-        child: navigationShell,
+        key: ValueKey(widget.navigationShell.currentIndex),
+        child: widget.navigationShell,
       ),
     );
   }
