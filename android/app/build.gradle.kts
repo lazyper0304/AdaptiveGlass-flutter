@@ -37,28 +37,35 @@ android {
             it.load(properties.inputStream())
     }
 
-    val config = keyProperties.getProperty("storeFile")?.let {
-        signingConfigs.create("release") {
-            storeFile = file(it)
-            storePassword = keyProperties.getProperty("storePassword")
-            keyAlias = keyProperties.getProperty("keyAlias")
-            keyPassword = keyProperties.getProperty("keyPassword")
+    signingConfigs {
+        create("release") {
+            storeFile = keyProperties.getProperty("storeFile")?.let { file(it) } ?: signingConfigs["debug"]?.storeFile
+            storePassword = keyProperties.getProperty("storePassword") ?: signingConfigs["debug"]?.storePassword
+            keyAlias = keyProperties.getProperty("keyAlias") ?: signingConfigs["debug"]?.keyAlias
+            keyPassword = keyProperties.getProperty("keyPassword") ?: signingConfigs["debug"]?.keyPassword
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+        create("debug") {
+            storeFile = keyProperties.getProperty("storeFile")?.let { file(it) } ?: signingConfigs["debug"]?.storeFile
+            storePassword = keyProperties.getProperty("storePassword") ?: signingConfigs["debug"]?.storePassword
+            keyAlias = keyProperties.getProperty("keyAlias") ?: signingConfigs["debug"]?.keyAlias
+            keyPassword = keyProperties.getProperty("keyPassword") ?: signingConfigs["debug"]?.keyPassword
             enableV1Signing = true
             enableV2Signing = true
         }
     }
 
     buildTypes {
-        all {
-            signingConfig = config ?: signingConfigs["debug"]
-        }
         release {
+            signingConfig = signingConfigs["release"]
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
         debug {
+            signingConfig = signingConfigs["debug"]
             applicationIdSuffix = ".debug"
         }
     }

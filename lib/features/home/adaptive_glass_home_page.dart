@@ -34,12 +34,51 @@ class AdaptiveGlassHomePage extends StatelessWidget {
         child: Scaffold(
           extendBody: true,
           backgroundColor: Colors.transparent,
-          body: navigationShell,
+          body: _AnimatedNavigationShell(navigationShell: navigationShell),
           bottomNavigationBar: FloatingHomeNavigation(
             selectedIndex: navigationShell.currentIndex,
             onSelected: _onTabSelected,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AnimatedNavigationShell extends StatelessWidget {
+  const _AnimatedNavigationShell({required this.navigationShell});
+
+  final StatefulNavigationShell navigationShell;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      transitionBuilder: (child, animation) {
+        final isForward = navigationShell.currentIndex > navigationShell.previousIndex;
+        final slideAnimation = Tween<Offset>(
+          begin: isForward ? const Offset(0.15, 0) : const Offset(-0.15, 0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        ));
+        final fadeAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        ));
+
+        return SlideTransition(
+          position: slideAnimation,
+          child: FadeTransition(
+            opacity: fadeAnimation,
+            child: child,
+          ),
+        );
+      },
+      child: KeyedSubtree(
+        key: ValueKey(navigationShell.currentIndex),
+        child: navigationShell,
       ),
     );
   }
