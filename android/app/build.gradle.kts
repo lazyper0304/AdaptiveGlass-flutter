@@ -31,26 +31,26 @@ android {
     packagingOptions.jniLibs.useLegacyPackaging = true
     packagingOptions.dex.useLegacyPackaging = true
 
-    val keyProperties = Properties().also {
-        val properties = rootProject.file("key.properties")
-        if (properties.exists())
-            it.load(properties.inputStream())
+    val keyPropertiesFile = rootProject.file("key.properties")
+    val keyProperties = Properties()
+    if (keyPropertiesFile.exists()) {
+        keyProperties.load(keyPropertiesFile.inputStream())
     }
 
     signingConfigs {
         create("release") {
-            storeFile = keyProperties.getProperty("storeFile")?.let { file(it) } ?: signingConfigs["debug"]?.storeFile
-            storePassword = keyProperties.getProperty("storePassword") ?: signingConfigs["debug"]?.storePassword
-            keyAlias = keyProperties.getProperty("keyAlias") ?: signingConfigs["debug"]?.keyAlias
-            keyPassword = keyProperties.getProperty("keyPassword") ?: signingConfigs["debug"]?.keyPassword
-            enableV1Signing = true
-            enableV2Signing = true
-        }
-        create("debug") {
-            storeFile = keyProperties.getProperty("storeFile")?.let { file(it) } ?: signingConfigs["debug"]?.storeFile
-            storePassword = keyProperties.getProperty("storePassword") ?: signingConfigs["debug"]?.storePassword
-            keyAlias = keyProperties.getProperty("keyAlias") ?: signingConfigs["debug"]?.keyAlias
-            keyPassword = keyProperties.getProperty("keyPassword") ?: signingConfigs["debug"]?.keyPassword
+            keyProperties.getProperty("storeFile")?.let {
+                storeFile = file(it)
+            }
+            keyProperties.getProperty("storePassword")?.let {
+                storePassword = it
+            }
+            keyProperties.getProperty("keyAlias")?.let {
+                keyAlias = it
+            }
+            keyProperties.getProperty("keyPassword")?.let {
+                keyPassword = it
+            }
             enableV1Signing = true
             enableV2Signing = true
         }
@@ -65,7 +65,7 @@ android {
             )
         }
         debug {
-            signingConfig = signingConfigs["debug"]
+            signingConfig = signingConfigs["release"]
             applicationIdSuffix = ".debug"
         }
     }
