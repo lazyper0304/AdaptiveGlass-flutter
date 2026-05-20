@@ -37,20 +37,19 @@ android {
         keyProperties.load(keyPropertiesFile.inputStream())
     }
 
+    val storeFile = keyProperties.getProperty("storeFile")?.let { file(it) }
+    val storePassword = keyProperties.getProperty("storePassword") ?: System.getenv("KEYSTORE_PASSWORD")
+    val keyAlias = keyProperties.getProperty("keyAlias") ?: System.getenv("KEY_ALIAS")
+    val keyPassword = keyProperties.getProperty("keyPassword") ?: System.getenv("KEY_PASSWORD")
+
+    val hasSigningConfig = storePassword != null && keyAlias != null && keyPassword != null
+
     signingConfigs {
         create("release") {
-            keyProperties.getProperty("storeFile")?.let {
-                storeFile = file(it)
-            }
-            keyProperties.getProperty("storePassword")?.let {
-                storePassword = it
-            }
-            keyProperties.getProperty("keyAlias")?.let {
-                keyAlias = it
-            }
-            keyProperties.getProperty("keyPassword")?.let {
-                keyPassword = it
-            }
+            storeFile?.let { this.storeFile = it }
+            storePassword?.let { this.storePassword = it }
+            keyAlias?.let { this.keyAlias = it }
+            keyPassword?.let { this.keyPassword = it }
             enableV1Signing = true
             enableV2Signing = true
         }
@@ -58,14 +57,18 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs["release"]
+            if (hasSigningConfig) {
+                signingConfig = signingConfigs["release"]
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
         debug {
-            signingConfig = signingConfigs["release"]
+            if (hasSigningConfig) {
+                signingConfig = signingConfigs["release"]
+            }
             applicationIdSuffix = ".debug"
         }
     }
