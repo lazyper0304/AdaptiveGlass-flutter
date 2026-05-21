@@ -18,7 +18,7 @@ const homeTemplates = [
   TemplateData(
     template: FrameTemplate.classic,
     title: '经典模式',
-    subtitle: '保留原有玻璃感边框与实时调节能力',
+    subtitle: '玻璃感边框',
     variant: 3,
   ),
   TemplateData(
@@ -32,5 +32,11 @@ const homeTemplates = [
     title: '水印边框',
     subtitle: '底部白色信息边框，支持照片参数与厂商 Logo',
     variant: 5,
+  ),
+  TemplateData(
+    template: FrameTemplate.colorWalk,
+    title: 'Color Walk',
+    subtitle: '取色背景，图片展示，支持自定义文字和时间',
+    variant: 6,
   ),
 ];

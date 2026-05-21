@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'classic_info_border_settings.dart';
+import 'color_walk_settings.dart';
 import 'frame_template.dart';
 
 enum RatioPreset {
@@ -305,6 +306,7 @@ class ProcessingSettings {
     this.exportQuality = 95,
     this.watermark = const WatermarkSettings(),
     this.classicInfoBorder = const ClassicInfoBorderSettings(),
+    this.colorWalk = const ColorWalkSettings(),
   });
 
   final FrameTemplate template;
@@ -321,6 +323,7 @@ class ProcessingSettings {
   final int exportQuality;
   final WatermarkSettings watermark;
   final ClassicInfoBorderSettings classicInfoBorder;
+  final ColorWalkSettings colorWalk;
 
   ProcessingSettings copyWith({
     FrameTemplate? template,
@@ -337,6 +340,7 @@ class ProcessingSettings {
     int? exportQuality,
     WatermarkSettings? watermark,
     ClassicInfoBorderSettings? classicInfoBorder,
+    ColorWalkSettings? colorWalk,
   }) {
     return ProcessingSettings(
       template: template ?? this.template,
@@ -353,6 +357,7 @@ class ProcessingSettings {
       exportQuality: exportQuality ?? this.exportQuality,
       watermark: watermark ?? this.watermark,
       classicInfoBorder: classicInfoBorder ?? this.classicInfoBorder,
+      colorWalk: colorWalk ?? this.colorWalk,
     );
   }
 
@@ -372,6 +377,7 @@ class ProcessingSettings {
       'export_quality': exportQuality,
       'watermark': watermark.toJson(),
       'classic_info_border': classicInfoBorder.toJson(),
+      'color_walk': colorWalk.toJson(),
     };
   }
 
@@ -398,6 +404,9 @@ class ProcessingSettings {
         Map<String, dynamic>.from(
           json['classic_info_border'] as Map? ?? const {},
         ),
+      ),
+      colorWalk: ColorWalkSettings.fromJson(
+        Map<String, dynamic>.from(json['color_walk'] as Map? ?? const {}),
       ),
     );
   }

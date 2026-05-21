@@ -1,4 +1,4 @@
-enum FrameTemplate { classic, colorBorder, watermarkBorder }
+enum FrameTemplate { classic, colorBorder, watermarkBorder, colorWalk }
 
 extension FrameTemplateX on FrameTemplate {
   String get storageValue => name;

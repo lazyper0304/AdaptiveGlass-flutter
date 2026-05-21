@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../../../models/color_walk_settings.dart';
 import '../../../models/frame_template.dart';
 import '../../../models/processing_settings.dart';
+import '../../../services/frame_processing_models.dart';
 import '../models/export_format_option.dart';
 import 'classic_info_border_section.dart';
 import 'tappable_switch_row.dart';
@@ -29,6 +31,7 @@ class EditorSettingsPanel extends StatefulWidget {
     required this.watermarkController,
     required this.onSettingsChanged,
     required this.onExportFormatChanged,
+    this.palette = const [],
   });
 
   final FrameTemplate template;
@@ -37,6 +40,7 @@ class EditorSettingsPanel extends StatefulWidget {
   final TextEditingController watermarkController;
   final ValueChanged<ProcessingSettings> onSettingsChanged;
   final ValueChanged<ExportFormatOption> onExportFormatChanged;
+  final List<PaletteSwatch> palette;
 
   @override
   State<EditorSettingsPanel> createState() => _EditorSettingsPanelState();
@@ -69,6 +73,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             FrameTemplate.classic => _buildClassicSections(context),
             FrameTemplate.watermarkBorder => _buildClassicSections(context),
             FrameTemplate.colorBorder => _buildColorBorderSections(context),
+            FrameTemplate.colorWalk => _buildColorWalkSections(context),
           },
         ),
       ),
@@ -91,6 +96,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         _ClassicSettingsCategory.export,
       ],
       FrameTemplate.colorBorder => const [_ClassicSettingsCategory.export],
+      FrameTemplate.colorWalk => const [_ClassicSettingsCategory.export],
     };
   }
 
@@ -383,6 +389,130 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
       ),
     ];
   }
+
+  List<Widget> _buildColorWalkSections(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final settings = widget.settings.colorWalk;
+    final palette = widget.palette;
+
+    return [
+      const _SectionTitle(text: '模式说明'),
+      Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: colors.surface.withValues(alpha: 0.46),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: colors.outline.withValues(alpha: 0.18)),
+        ),
+        child: Text(
+          'Color Walk 模式：从图片取色作为背景，显示上传的图片。从图片中提取五种主色，选择一种作为背景色。',
+          style: TextStyle(
+            color: colors.onSurface.withValues(alpha: 0.76),
+            height: 1.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+      const _SectionTitle(text: '选择背景色'),
+      if (palette.isEmpty)
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: colors.surface.withValues(alpha: 0.36),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            '请先导入图片以提取颜色',
+            style: TextStyle(
+              color: colors.onSurface.withValues(alpha: 0.6),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        )
+      else
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: palette
+              .asMap()
+              .entries
+              .map(
+                (entry) => _ColorSelector(
+                  color: entry.value.toColor(),
+                  selected: settings.selectedColorIndex == entry.key,
+                  onTap: () => widget.onSettingsChanged(
+                    widget.settings.copyWith(
+                      colorWalk: settings.copyWith(selectedColorIndex: entry.key),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      const SizedBox(height: 8),
+      const _SectionTitle(text: '排布位置'),
+      _EnumRow<ColorWalkPosition>(
+        value: settings.position,
+        values: ColorWalkPosition.values,
+        labelBuilder: (item) => item.label,
+        onChanged: (value) => widget.onSettingsChanged(
+          widget.settings.copyWith(
+            colorWalk: settings.copyWith(position: value),
+          ),
+        ),
+      ),
+      const _SectionTitle(text: '自定义文字'),
+      _ColorWalkTextField(
+        initialText: settings.customText,
+        onChanged: (value) => widget.onSettingsChanged(
+          widget.settings.copyWith(
+            colorWalk: settings.copyWith(customText: value),
+          ),
+        ),
+      ),
+      const SizedBox(height: 8),
+      _SliderRow(
+        label: '文字大小 ${settings.customTextSize}px',
+        value: settings.customTextSize.toDouble(),
+        min: 12,
+        max: 32,
+        onChanged: (value) => widget.onSettingsChanged(
+          widget.settings.copyWith(
+            colorWalk: settings.copyWith(customTextSize: value.round()),
+          ),
+        ),
+      ),
+      const SizedBox(height: 12),
+      _SwitchRow(
+        label: '显示拍摄时间',
+        value: settings.showDateTime,
+        onChanged: (value) => widget.onSettingsChanged(
+          widget.settings.copyWith(
+            colorWalk: settings.copyWith(showDateTime: value),
+          ),
+        ),
+      ),
+      if (settings.showDateTime)
+        _SliderRow(
+          label: '时间文字大小 ${settings.dateTimeTextSize}px',
+          value: settings.dateTimeTextSize.toDouble(),
+          min: 10,
+          max: 24,
+          onChanged: (value) => widget.onSettingsChanged(
+            widget.settings.copyWith(
+              colorWalk: settings.copyWith(dateTimeTextSize: value.round()),
+            ),
+          ),
+        ),
+      const _SectionTitle(text: '导出'),
+      _EnumRow<ExportFormatOption>(
+        value: widget.exportFormat,
+        values: ExportFormatOption.values,
+        labelBuilder: (item) => item.label,
+        onChanged: widget.onExportFormatChanged,
+      ),
+    ];
+  }
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -514,6 +644,117 @@ class _EnumRow<T extends Enum> extends StatelessWidget {
               ),
             )
             .toList(),
+      ),
+    );
+  }
+}
+
+class _ColorWalkTextField extends StatefulWidget {
+  const _ColorWalkTextField({
+    required this.initialText,
+    required this.onChanged,
+  });
+
+  final String initialText;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_ColorWalkTextField> createState() => _ColorWalkTextFieldState();
+}
+
+class _ColorWalkTextFieldState extends State<_ColorWalkTextField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialText);
+    _controller.addListener(_handleChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ColorWalkTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialText != widget.initialText) {
+      _controller.text = widget.initialText;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_handleChange);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleChange() {
+    widget.onChanged(_controller.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GlassTextField(
+      controller: _controller,
+      placeholder: '输入自定义文字',
+      prefixIcon: const Icon(Icons.text_fields_rounded, size: 20),
+      quality: GlassQuality.standard,
+    );
+  }
+}
+
+class _ColorSelector extends StatelessWidget {
+  const _ColorSelector({
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 52,
+        height: 52,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 4,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: selected
+                  ? Border.all(
+                      color: _editorAccentColor(context),
+                      width: 3,
+                    )
+                  : null,
+            ),
+            child: selected
+                ? Icon(
+                    Icons.check,
+                    color: Colors.white,
+                    size: 20,
+                  )
+                : null,
+          ),
+        ),
       ),
     );
   }

@@ -6,6 +6,7 @@ import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
 import '../../models/classic_info_border_settings.dart';
+import '../../models/color_walk_settings.dart';
 import '../../models/frame_template.dart';
 import '../../models/processing_settings.dart';
 import '../../services/adaptive_glass_processor.dart';
@@ -58,7 +59,8 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
   Uint8List? get sourceBytesThumb => _sourceBytesThumb;
   bool get _usesRealtimePreviewStatus =>
       _template == FrameTemplate.classic ||
-      _template == FrameTemplate.watermarkBorder;
+      _template == FrameTemplate.watermarkBorder ||
+      _template == FrameTemplate.colorWalk;
 
   void setStatus(String status, {bool? processing}) {
     _status = status;
@@ -102,7 +104,7 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
 
     _warmUpExif(bytes, sourceRevision);
     _generateThumbnail(bytes, sourceRevision);
-    if (_template == FrameTemplate.colorBorder) {
+    if (_template == FrameTemplate.colorBorder || _template == FrameTemplate.colorWalk) {
       _extractPalette(bytes, sourceRevision);
     } else {
       _schedulePreviewRender(previewMaxDimension, immediate: true);
@@ -389,6 +391,20 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
           contentScale: 100,
           watermark: WatermarkSettings(enabled: false),
         );
+      case FrameTemplate.colorWalk:
+        return const ProcessingSettings(
+          template: FrameTemplate.colorWalk,
+          blurRadius: 0,
+          blurBrightness: 0,
+          borderStyle: BorderStyleOption.none,
+          borderColor: MonoColor.white,
+          borderWidth: 0,
+          cornerRadius: 0,
+          shadowSize: 0,
+          contentScale: 90,
+          watermark: WatermarkSettings(enabled: false),
+          colorWalk: ColorWalkSettings(),
+        );
     }
   }
 
@@ -423,6 +439,18 @@ class AdaptiveGlassEditorController extends ChangeNotifier {
           watermark: normalized.watermark.copyWith(enabled: false),
         );
       case FrameTemplate.colorBorder:
+        return normalized.copyWith(
+          targetRatio: RatioPreset.original,
+          blurRadius: 0,
+          blurBrightness: 0,
+          borderStyle: BorderStyleOption.none,
+          borderColor: MonoColor.white,
+          borderWidth: 0,
+          cornerRadius: 0,
+          shadowSize: 0,
+          watermark: normalized.watermark.copyWith(enabled: false),
+        );
+      case FrameTemplate.colorWalk:
         return normalized.copyWith(
           targetRatio: RatioPreset.original,
           blurRadius: 0,

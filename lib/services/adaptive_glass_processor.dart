@@ -9,16 +9,20 @@ import '../models/processing_settings.dart';
 import 'frame_processing_models.dart';
 import 'frame_renderers/classic_frame_renderer.dart';
 import 'frame_renderers/color_border_frame_renderer.dart';
+import 'frame_renderers/color_walk_frame_renderer.dart';
 
 class AdaptiveGlassProcessor {
   AdaptiveGlassProcessor({
     ClassicFrameRenderer? classicRenderer,
     ColorBorderFrameRenderer? colorBorderRenderer,
+    ColorWalkFrameRenderer? colorWalkRenderer,
   }) : _classicRenderer = classicRenderer ?? ClassicFrameRenderer(),
-       _colorBorderRenderer = colorBorderRenderer ?? ColorBorderFrameRenderer();
+       _colorBorderRenderer = colorBorderRenderer ?? ColorBorderFrameRenderer(),
+       _colorWalkRenderer = colorWalkRenderer ?? ColorWalkFrameRenderer();
 
   final ClassicFrameRenderer _classicRenderer;
   final ColorBorderFrameRenderer _colorBorderRenderer;
+  final ColorWalkFrameRenderer _colorWalkRenderer;
 
   Future<ExifSnapshot> readExif(Uint8List sourceBytes) =>
       _readExif(sourceBytes);
@@ -63,6 +67,15 @@ class AdaptiveGlassProcessor {
           outputFormat: RasterOutputFormat.jpeg,
           jpegQuality: 88,
         );
+      case FrameTemplate.colorWalk:
+        return _colorWalkRenderer.process(
+          sourceBytes: sourceBytes,
+          settings: settings,
+          exif: exif,
+          maxDimension: maxDimension,
+          outputFormat: RasterOutputFormat.jpeg,
+          jpegQuality: 88,
+        );
     }
   }
 
@@ -81,6 +94,12 @@ class AdaptiveGlassProcessor {
         );
       case FrameTemplate.colorBorder:
         return _colorBorderRenderer.processPreviewComposite(
+          sourceBytes,
+          settings,
+          maxDimension: maxDimension,
+        );
+      case FrameTemplate.colorWalk:
+        return _colorWalkRenderer.processPreviewComposite(
           sourceBytes,
           settings,
           maxDimension: maxDimension,
@@ -105,6 +124,13 @@ class AdaptiveGlassProcessor {
         );
       case FrameTemplate.colorBorder:
         return _colorBorderRenderer.process(
+          sourceBytes: sourceBytes,
+          settings: settings,
+          exif: resolvedExif,
+          outputFormat: RasterOutputFormat.png,
+        );
+      case FrameTemplate.colorWalk:
+        return _colorWalkRenderer.process(
           sourceBytes: sourceBytes,
           settings: settings,
           exif: resolvedExif,
@@ -151,6 +177,7 @@ class AdaptiveGlassProcessor {
         exposureTime: _extractExposure(tags),
         fNumber: _extractRatioAsDecimal(tags, const ['EXIF FNumber']),
         focalLength: _extractRatioAsDecimal(tags, const ['EXIF FocalLength']),
+        dateTimeOriginal: _extractPrintable(tags, const ['EXIF DateTimeOriginal']),
       );
     } catch (_) {
       return const ExifSnapshot();

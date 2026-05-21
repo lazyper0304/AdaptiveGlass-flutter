@@ -257,6 +257,7 @@ class _AdaptiveGlassEditorPageState extends State<AdaptiveGlassEditorPage> {
                       previewMaxDimension: _previewMaxDimension(context),
                     ),
                     onExportFormatChanged: _controller.setExportFormat,
+                    palette: _controller.palette,
                   );
 
                   if (isWide) {

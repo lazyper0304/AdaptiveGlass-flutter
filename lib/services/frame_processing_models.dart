@@ -87,6 +87,7 @@ class ExifSnapshot {
     this.exposureTime = '',
     this.fNumber = '',
     this.focalLength = '',
+    this.dateTimeOriginal = '',
   });
 
   final String make;
@@ -95,6 +96,7 @@ class ExifSnapshot {
   final String exposureTime;
   final String fNumber;
   final String focalLength;
+  final String dateTimeOriginal;
 }
 
 class PaletteSwatch {

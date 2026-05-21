@@ -43,6 +43,8 @@ class TemplateTile extends StatelessWidget {
                     const _ColorBorderTemplatePreview(),
                   FrameTemplate.watermarkBorder =>
                     const _WatermarkBorderTemplatePreview(),
+                  FrameTemplate.colorWalk =>
+                    const _ColorWalkTemplatePreview(),
                 },
               ),
             ),
@@ -221,6 +223,102 @@ class _WatermarkBorderTemplatePreview extends StatelessWidget {
               ),
               const _WatermarkFooterPreview(),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ColorWalkTemplatePreview extends StatelessWidget {
+  const _ColorWalkTemplatePreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: Color(0xFF8EC5FC),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 4,
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Color(0xFFE3F2FD),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _ColorPreviewDot(color: Color(0xFFFF6B6B), selected: false),
+                      _ColorPreviewDot(color: Color(0xFFFFA94D), selected: true),
+                      _ColorPreviewDot(color: Color(0xFFFFE066), selected: false),
+                      _ColorPreviewDot(color: Color(0xFF69DB7C), selected: false),
+                      _ColorPreviewDot(color: Color(0xFF74C0FC), selected: false),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 6,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.only(
+                  topRight: Radius.circular(18),
+                  bottomRight: Radius.circular(18),
+                ),
+                color: Colors.white,
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(8),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: Color(0xFFF5F1EC),
+                  ),
+                  child: CustomPaint(painter: PhotoScenePainter(variant: 6)),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ColorPreviewDot extends StatelessWidget {
+  const _ColorPreviewDot({required this.color, required this.selected});
+
+  final Color color;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 24,
+      height: 24,
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Container(
+          width: selected ? 20 : 18,
+          height: selected ? 20 : 18,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: selected
+                ? Border.all(color: Colors.white, width: 3)
+                : Border.all(color: Colors.white, width: 2),
           ),
         ),
       ),

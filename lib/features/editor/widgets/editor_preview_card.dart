@@ -9,6 +9,7 @@ import '../../../models/processing_settings.dart';
 import '../../../services/frame_processing_models.dart';
 import 'previews/classic_frame_preview.dart';
 import 'previews/color_border_preview.dart';
+import 'previews/color_walk_preview.dart';
 
 class EditorPreviewCard extends StatefulWidget {
   const EditorPreviewCard({
@@ -38,11 +39,13 @@ class EditorPreviewCard extends StatefulWidget {
 
 class _EditorPreviewCardState extends State<EditorPreviewCard> {
   ui.Image? _colorBorderImage;
+  ui.Image? _colorWalkImage;
 
   @override
   void initState() {
     super.initState();
     _loadColorBorderImageIfNeeded();
+    _loadColorWalkImageIfNeeded();
   }
 
   @override
@@ -51,13 +54,16 @@ class _EditorPreviewCardState extends State<EditorPreviewCard> {
     if (!identical(oldWidget.sourceBytes, widget.sourceBytes) ||
         oldWidget.template != widget.template) {
       _disposeColorBorderImage();
+      _disposeColorWalkImage();
       _loadColorBorderImageIfNeeded();
+      _loadColorWalkImageIfNeeded();
     }
   }
 
   @override
   void dispose() {
     _disposeColorBorderImage();
+    _disposeColorWalkImage();
     super.dispose();
   }
 
@@ -86,6 +92,33 @@ class _EditorPreviewCardState extends State<EditorPreviewCard> {
   void _disposeColorBorderImage() {
     _colorBorderImage?.dispose();
     _colorBorderImage = null;
+  }
+
+  Future<void> _loadColorWalkImageIfNeeded() async {
+    if (widget.template != FrameTemplate.colorWalk ||
+        widget.sourceBytes == null) {
+      return;
+    }
+
+    try {
+      final codec = await ui.instantiateImageCodec(
+        widget.sourceBytes!,
+        allowUpscaling: false,
+      );
+      final frame = await codec.getNextFrame();
+      if (!mounted) {
+        frame.image.dispose();
+        return;
+      }
+      setState(() {
+        _colorWalkImage = frame.image;
+      });
+    } catch (_) {}
+  }
+
+  void _disposeColorWalkImage() {
+    _colorWalkImage?.dispose();
+    _colorWalkImage = null;
   }
 
   @override
@@ -154,6 +187,29 @@ class _EditorPreviewCardState extends State<EditorPreviewCard> {
           image: image,
           palette: widget.palette,
           settings: widget.settings,
+        );
+      }
+      final thumbBytes = widget.sourceBytesThumb;
+      if (thumbBytes != null) {
+        return Center(
+          child: Image.memory(
+            thumbBytes,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+          ),
+        );
+      }
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (widget.template == FrameTemplate.colorWalk) {
+      final image = _colorWalkImage;
+      if (image != null) {
+        return ColorWalkPreview(
+          image: image,
+          palette: widget.palette,
+          settings: widget.settings,
+          exif: widget.exif,
         );
       }
       final thumbBytes = widget.sourceBytesThumb;
