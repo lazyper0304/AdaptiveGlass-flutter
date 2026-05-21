@@ -43,12 +43,12 @@ jobs:
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             mkdir -p android/app
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/key.jks
-            echo "storeFile=key.jks" > android/key.properties
+            echo "storeFile=${{ github.workspace }}/android/app/key.jks" > android/key.properties
             echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
             echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
             echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
             ls -la android/app/key.jks
-            ls -la android/key.properties
+            cat android/key.properties
           fi
 
       - name: Build APK
