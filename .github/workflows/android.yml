@@ -15,6 +15,7 @@ jobs:
     name: Release Android
     runs-on: ubuntu-latest
     permissions: write-all
+    environment: production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
