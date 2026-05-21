@@ -34,13 +34,74 @@ class AdaptiveGlassHomePage extends StatelessWidget {
         child: Scaffold(
           extendBody: true,
           backgroundColor: Colors.transparent,
-          body: _AnimatedNavigationShell(navigationShell: navigationShell),
+          body: _GestureDetectingNavigationShell(
+            navigationShell: navigationShell,
+            onTabSelected: _onTabSelected,
+          ),
           bottomNavigationBar: FloatingHomeNavigation(
             selectedIndex: navigationShell.currentIndex,
             onSelected: _onTabSelected,
           ),
         ),
       ),
+    );
+  }
+}
+
+class _GestureDetectingNavigationShell extends StatefulWidget {
+  const _GestureDetectingNavigationShell({
+    required this.navigationShell,
+    required this.onTabSelected,
+  });
+
+  final StatefulNavigationShell navigationShell;
+  final void Function(int) onTabSelected;
+
+  @override
+  State<_GestureDetectingNavigationShell> createState() => _GestureDetectingNavigationShellState();
+}
+
+class _GestureDetectingNavigationShellState extends State<_GestureDetectingNavigationShell> {
+  final double _swipeThreshold = 80.0;
+  double _startX = 0.0;
+  double _currentX = 0.0;
+  bool _isSwiping = false;
+
+  void _onHorizontalDragStart(DragStartDetails details) {
+    _startX = details.globalPosition.dx;
+    _currentX = _startX;
+    _isSwiping = true;
+  }
+
+  void _onHorizontalDragUpdate(DragUpdateDetails details) {
+    if (!_isSwiping) return;
+    _currentX = details.globalPosition.dx;
+  }
+
+  void _onHorizontalDragEnd(DragEndDetails details) {
+    if (!_isSwiping) return;
+    _isSwiping = false;
+
+    final deltaX = _currentX - _startX;
+    final currentIndex = widget.navigationShell.currentIndex;
+
+    if (deltaX.abs() > _swipeThreshold) {
+      if (deltaX > 0 && currentIndex == 1) {
+        widget.onTabSelected(0);
+      } else if (deltaX < 0 && currentIndex == 0) {
+        widget.onTabSelected(1);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onHorizontalDragStart: _onHorizontalDragStart,
+      onHorizontalDragUpdate: _onHorizontalDragUpdate,
+      onHorizontalDragEnd: _onHorizontalDragEnd,
+      behavior: HitTestBehavior.translucent,
+      child: _AnimatedNavigationShell(navigationShell: widget.navigationShell),
     );
   }
 }
