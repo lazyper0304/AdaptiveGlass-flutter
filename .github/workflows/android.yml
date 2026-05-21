@@ -38,6 +38,17 @@ jobs:
           flutter-version: "3.x"
           cache: true
 
+      - name: Debug secrets
+        run: |
+          echo "=== Secrets Debug ==="
+          echo "KEYSTORE_BASE64 exists: ${{ secrets.KEYSTORE_BASE64 != '' }}"
+          echo "KEYSTORE_PASSWORD exists: ${{ secrets.KEYSTORE_PASSWORD != '' }}"
+          echo "KEY_ALIAS exists: ${{ secrets.KEY_ALIAS != '' }}"
+          echo "KEY_PASSWORD exists: ${{ secrets.KEY_PASSWORD != '' }}"
+          echo "=== Environment ==="
+          echo "Current directory: $(pwd)"
+          echo "User: $(whoami)"
+
       - name: Write signing config
         run: |
           SECRET_LENGTH=$(echo -n "${{ secrets.KEYSTORE_BASE64 }}" | wc -c)
