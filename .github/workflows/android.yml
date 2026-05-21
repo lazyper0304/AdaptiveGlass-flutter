@@ -40,11 +40,13 @@ jobs:
 
       - name: Write signing config
         run: |
-          echo "KEYSTORE_BASE64 length: ${#KEYSTORE_BASE64}"
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+          SECRET_LENGTH=$(echo -n "${{ secrets.KEYSTORE_BASE64 }}" | wc -c)
+          echo "KEYSTORE_BASE64 length: $SECRET_LENGTH"
+          if [ "$SECRET_LENGTH" -gt 0 ]; then
             mkdir -p android/app
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/key.jks
-            echo "Keystore file created, size: $(ls -la android/app/key.jks)"
+            echo -n "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/key.jks
+            echo "Keystore file created"
+            ls -la android/app/key.jks
             echo "storeFile=${{ github.workspace }}/android/app/key.jks" > android/key.properties
             echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
             echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
@@ -52,10 +54,8 @@ jobs:
             cat android/key.properties
             keytool -list -v -keystore android/app/key.jks -storepass "${{ secrets.KEYSTORE_PASSWORD }}" 2>&1 || echo "Keystore verification failed"
           else
-            echo "WARNING: KEYSTORE_BASE64 is empty"
+            echo "WARNING: KEYSTORE_BASE64 is empty or not set"
           fi
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Build APK
         run: flutter build apk --release --split-per-abi
