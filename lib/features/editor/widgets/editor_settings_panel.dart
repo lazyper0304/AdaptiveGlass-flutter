@@ -291,12 +291,8 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
           ),
         ),
         _EnumRow<WatermarkPosition>(
-          value: settings.watermark.position == WatermarkPosition.manual
-              ? WatermarkPosition.bottomCenter
-              : settings.watermark.position,
-          values: WatermarkPosition.values
-              .where((item) => item != WatermarkPosition.manual)
-              .toList(),
+          value: settings.watermark.position,
+          values: WatermarkPosition.values,
           labelBuilder: (item) => item.label,
           onChanged: (value) => widget.onSettingsChanged(
             settings.copyWith(
@@ -304,6 +300,30 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             ),
           ),
         ),
+        if (settings.watermark.position == WatermarkPosition.manual) ...[
+          _SliderRow(
+            label: '水平偏移 ${settings.watermark.customX}',
+            value: settings.watermark.customX.toDouble(),
+            min: -500,
+            max: 500,
+            onChanged: (value) => widget.onSettingsChanged(
+              settings.copyWith(
+                watermark: settings.watermark.copyWith(customX: value.round()),
+              ),
+            ),
+          ),
+          _SliderRow(
+            label: '垂直偏移 ${settings.watermark.customY}',
+            value: settings.watermark.customY.toDouble(),
+            min: -500,
+            max: 500,
+            onChanged: (value) => widget.onSettingsChanged(
+              settings.copyWith(
+                watermark: settings.watermark.copyWith(customY: value.round()),
+              ),
+            ),
+          ),
+        ],
         _EnumRow<MonoColor>(
           value: settings.watermark.textColor,
           values: MonoColor.values,

@@ -143,7 +143,7 @@ ClassicInfoBorderMetrics calculateClassicInfoBorderMetrics({
   required int targetHeight,
   required ClassicInfoBorderSettings settings,
 }) {
-  final titleFontSize = (targetWidth * 0.024).clamp(16.0, 28.0).toDouble();
+  final titleFontSize = (targetWidth * 0.024 * settings.fontSizeScale).clamp(16.0, 28.0).toDouble();
   final detailFontSize = (titleFontSize * 0.58).clamp(11.0, 16.0).toDouble();
   final horizontalPadding = math.max(24.0, targetWidth * 0.038);
   final verticalPadding = math.max(14.0, targetHeight * 0.016);

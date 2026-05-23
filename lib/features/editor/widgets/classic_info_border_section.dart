@@ -156,6 +156,15 @@ class _ClassicInfoBorderSectionState extends State<ClassicInfoBorderSection> {
               widget.onChanged(settings.copyWith(logoScale: value / 100)),
           accent: accent,
         ),
+        _SliderRow(
+          label: 'EXIF文字大小 ${(settings.fontSizeScale * 100).round()}%',
+          value: settings.fontSizeScale * 100,
+          min: 50,
+          max: 200,
+          onChanged: (value) =>
+              widget.onChanged(settings.copyWith(fontSizeScale: value / 100)),
+          accent: accent,
+        ),
       ],
     );
   }

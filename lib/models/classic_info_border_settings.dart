@@ -58,6 +58,7 @@ class ClassicInfoBorderSettings {
     this.manualDetails = '',
     this.logo = CameraLogoOption.auto,
     this.logoScale = 1.0,
+    this.fontSizeScale = 1.0,
   });
 
   final bool enabled;
@@ -66,6 +67,7 @@ class ClassicInfoBorderSettings {
   final String manualDetails;
   final CameraLogoOption logo;
   final double logoScale;
+  final double fontSizeScale;
 
   ClassicInfoBorderSettings copyWith({
     bool? enabled,
@@ -74,6 +76,7 @@ class ClassicInfoBorderSettings {
     String? manualDetails,
     CameraLogoOption? logo,
     double? logoScale,
+    double? fontSizeScale,
   }) {
     return ClassicInfoBorderSettings(
       enabled: enabled ?? this.enabled,
@@ -82,6 +85,7 @@ class ClassicInfoBorderSettings {
       manualDetails: manualDetails ?? this.manualDetails,
       logo: logo ?? this.logo,
       logoScale: logoScale ?? this.logoScale,
+      fontSizeScale: fontSizeScale ?? this.fontSizeScale,
     );
   }
 
@@ -93,6 +97,7 @@ class ClassicInfoBorderSettings {
       'manual_details': manualDetails,
       'logo': logo.storageValue,
       'logo_scale': logoScale,
+      'font_size_scale': fontSizeScale,
     };
   }
 
@@ -106,6 +111,7 @@ class ClassicInfoBorderSettings {
       manualDetails: json['manual_details'] as String? ?? '',
       logo: CameraLogoOptionX.fromStorage(json['logo'] as String?),
       logoScale: (json['logo_scale'] as num?)?.toDouble() ?? 1.0,
+      fontSizeScale: (json['font_size_scale'] as num?)?.toDouble() ?? 1.0,
     );
   }
 }
