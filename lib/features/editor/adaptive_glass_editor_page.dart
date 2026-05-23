@@ -179,59 +179,67 @@ class _AdaptiveGlassEditorPageState extends State<AdaptiveGlassEditorPage> {
           builder: (context, _) {
             return Scaffold(
               extendBody: true,
+              extendBodyBehindAppBar: true,
               backgroundColor: Colors.transparent,
-              appBar: GlassAppBar(
+              appBar: PreferredSize(
                 preferredSize: const Size.fromHeight(58),
-                centerTitle: false,
-                leading: Tooltip(
-                  message: '返回',
-                  child: GlassButton(
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    onTap: () => context.pop(),
-                    width: 44,
-                    height: 44,
-                    iconSize: 22,
-                    label: '返回',
-                    quality: GlassQuality.standard,
-                  ),
-                ),
-                title: Hero(
-                  tag: widget.template.template.heroTag,
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: Text(
-                      widget.template.title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: colors.onSurface,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0,
+                child: SafeArea(
+                  minimum: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      Tooltip(
+                        message: '返回',
+                        child: GlassButton(
+                          icon: const Icon(Icons.arrow_back_rounded),
+                          onTap: () => context.pop(),
+                          width: 44,
+                          height: 44,
+                          iconSize: 22,
+                          label: '返回',
+                          quality: GlassQuality.standard,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Hero(
+                          tag: widget.template.template.heroTag,
+                          child: Material(
+                            type: MaterialType.transparency,
+                            child: Text(
+                              widget.template.title,
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                color: colors.onSurface,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      _EditorToolbarButton(
+                        tooltip: '导入图片',
+                        icon: Icons.file_open_rounded,
+                        onTap: _pickImage,
+                      ),
+                      _EditorToolbarButton(
+                        tooltip: '导出图片',
+                        icon: Icons.ios_share_rounded,
+                        onTap: _exportImage,
+                        enabled: _controller.hasSource,
+                      ),
+                      _EditorToolbarButton(
+                        tooltip: '保存预设',
+                        icon: Icons.bookmark_add_rounded,
+                        onTap: _savePreset,
+                      ),
+                      _EditorToolbarButton(
+                        tooltip: '加载预设',
+                        icon: Icons.folder_open_rounded,
+                        onTap: _loadPreset,
+                      ),
+                    ],
                   ),
                 ),
-                actions: [
-                  _EditorToolbarButton(
-                    tooltip: '导入图片',
-                    icon: Icons.file_open_rounded,
-                    onTap: _pickImage,
-                  ),
-                  _EditorToolbarButton(
-                    tooltip: '导出图片',
-                    icon: Icons.ios_share_rounded,
-                    onTap: _exportImage,
-                    enabled: _controller.hasSource,
-                  ),
-                  _EditorToolbarButton(
-                    tooltip: '保存预设',
-                    icon: Icons.bookmark_add_rounded,
-                    onTap: _savePreset,
-                  ),
-                  _EditorToolbarButton(
-                    tooltip: '加载预设',
-                    icon: Icons.folder_open_rounded,
-                    onTap: _loadPreset,
-                  ),
-                ],
               ),
               body: LayoutBuilder(
                 builder: (context, constraints) {
@@ -262,7 +270,7 @@ class _AdaptiveGlassEditorPageState extends State<AdaptiveGlassEditorPage> {
 
                   if (isWide) {
                     return Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 86),
+                      padding: const EdgeInsets.fromLTRB(20, 100, 20, 86),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -279,7 +287,7 @@ class _AdaptiveGlassEditorPageState extends State<AdaptiveGlassEditorPage> {
 
                   return ListView(
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 104),
+                    padding: const EdgeInsets.fromLTRB(20, 100, 20, 104),
                     children: [
                       SizedBox(height: 420, child: preview),
                       const SizedBox(height: 18),

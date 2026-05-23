@@ -124,7 +124,7 @@ class ThemeModeSelector extends StatelessWidget {
                   onTap: () => onChanged(option.mode),
                   borderRadius: BorderRadius.circular(18),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
+                    duration: const Duration(milliseconds: 240),
                     curve: Curves.easeOutCubic,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
@@ -133,25 +133,41 @@ class ThemeModeSelector extends StatelessWidget {
                           ? accent.withValues(alpha: 0.24)
                           : Colors.transparent,
                       border: isSelected
-                          ? Border.all(color: accent.withValues(alpha: 0.62))
+                          ? Border.all(color: accent.withValues(alpha: 0.72))
+                          : null,
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: accent.withValues(alpha: 0.16),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
                           : null,
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          option.icon,
-                          size: 16,
-                          color: isSelected
-                              ? accent
-                              : colors.onSurface.withValues(alpha: 0.62),
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            option.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                    child: AnimatedScale(
+                      duration: const Duration(milliseconds: 200),
+                      curve: isSelected ? Curves.elasticOut : Curves.easeInOut,
+                      scale: isSelected ? 1.05 : 1.0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AnimatedRotation(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOutCubic,
+                            turns: isSelected ? 0.1 : 0.0,
+                            child: Icon(
+                              option.icon,
+                              size: isSelected ? 18 : 16,
+                              color: isSelected
+                                  ? accent
+                                  : colors.onSurface.withValues(alpha: 0.62),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutCubic,
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: isSelected
                                   ? accent
@@ -159,10 +175,17 @@ class ThemeModeSelector extends StatelessWidget {
                               fontWeight: isSelected
                                   ? FontWeight.w700
                                   : FontWeight.w500,
+                              fontSize: isSelected ? 14 : 12,
+                            ) ??
+                                const TextStyle(),
+                            child: Text(
+                              option.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
