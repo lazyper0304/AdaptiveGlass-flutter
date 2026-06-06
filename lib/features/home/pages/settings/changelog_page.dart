@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../services/update_checker_service.dart';
+import '../../../../shared/app_theme.dart';
 import '../../widgets/common_home_widgets.dart';
 
 class ChangelogPage extends StatefulWidget {
@@ -74,7 +75,7 @@ class _ChangelogPageState extends State<ChangelogPage> {
 
   Widget _buildHeader(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final accent = homeAccentColor(context);
+    final accent = context.accentColor;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
@@ -125,7 +126,7 @@ class _ChangelogPageState extends State<ChangelogPage> {
 
   Widget _buildLoadingState() {
     final colors = Theme.of(context).colorScheme;
-    final accent = homeAccentColor(context);
+    final accent = context.accentColor;
 
     return Center(
       child: Column(
@@ -149,7 +150,7 @@ class _ChangelogPageState extends State<ChangelogPage> {
 
   Widget _buildErrorState() {
     final colors = Theme.of(context).colorScheme;
-    final accent = homeAccentColor(context);
+    final accent = context.accentColor;
 
     return Center(
       child: Padding(
@@ -245,7 +246,7 @@ class _ChangelogPageState extends State<ChangelogPage> {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: homeAccentColor(context),
+                                    color: context.accentColor,
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
@@ -264,7 +265,7 @@ class _ChangelogPageState extends State<ChangelogPage> {
                             'v${release.version}',
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: isLatest
-                                  ? homeAccentColor(context)
+                                  ? context.accentColor
                                   : colors.onSurface.withValues(alpha: 0.58),
                               fontWeight: isLatest ? FontWeight.w700 : FontWeight.normal,
                             ),
@@ -313,7 +314,7 @@ class _ChangelogPageState extends State<ChangelogPage> {
                               Icon(
                                 Icons.download_rounded,
                                 size: 14,
-                                color: homeAccentColor(context),
+                                color: context.accentColor,
                               ),
                               const SizedBox(width: 4),
                               Text(
@@ -372,7 +373,7 @@ class _ChangelogPageState extends State<ChangelogPage> {
                 Text(
                   '\u2022 ',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: homeAccentColor(context),
+                    color: context.accentColor,
                   ),
                 ),
                 Expanded(

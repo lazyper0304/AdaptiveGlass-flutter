@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../models/frame_template.dart';
+import '../../shared/app_theme.dart';
 import '../home/models/home_template_data.dart';
 import '../../shared/adaptive_glass_backdrop.dart';
 import 'adaptive_glass_editor_controller.dart';
@@ -323,8 +324,7 @@ class _EditorToolbarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? const Color(0xFFC7FF12) : const Color(0xFF238E54);
+    final accent = context.accentColor;
 
     return Tooltip(
       message: tooltip,

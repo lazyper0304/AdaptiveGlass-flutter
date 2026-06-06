@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
 import '../../shared/adaptive_glass_backdrop.dart';
+import '../../shared/theme_controller.dart';
 import 'pages/home/home_page.dart';
 import 'pages/settings/settings_page.dart';
 import 'package:adaptive_glass_flutter/features/home/widgets/floating_home_navigation.dart';
@@ -181,30 +181,4 @@ class AdaptiveGlassSettingsShell extends StatelessWidget {
       );
     });
   }
-}
-
-final themeMode = signal(ThemeMode.dark);
-
-const _themeModePreferenceKey = 'theme_mode';
-
-Future<void> initializeThemeModePreference() async {
-  final prefs = await SharedPreferences.getInstance();
-  themeMode.value = _themeModeFromName(prefs.getString(_themeModePreferenceKey));
-}
-
-void updateThemeMode(ThemeMode mode) {
-  themeMode.value = mode;
-  unawaited(_persistThemeMode(mode));
-}
-
-Future<void> _persistThemeMode(ThemeMode mode) async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setString(_themeModePreferenceKey, mode.name);
-}
-
-ThemeMode _themeModeFromName(String? rawValue) {
-  return ThemeMode.values.firstWhere(
-    (mode) => mode.name == rawValue,
-    orElse: () => ThemeMode.dark,
-  );
 }

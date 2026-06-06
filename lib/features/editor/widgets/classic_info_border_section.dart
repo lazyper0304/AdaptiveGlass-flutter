@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../../../models/classic_info_border_settings.dart';
+import '../../../shared/app_theme.dart';
 import 'tappable_switch_row.dart';
 
 class ClassicInfoBorderSection extends StatefulWidget {
@@ -85,7 +86,7 @@ class _ClassicInfoBorderSectionState extends State<ClassicInfoBorderSection> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final accent = _editorAccentColor(context);
+    final accent = context.accentColor;
     final settings = widget.settings;
 
     return Column(
@@ -251,7 +252,7 @@ class _SwitchRow extends StatelessWidget {
       label: label,
       value: value,
       onChanged: onChanged,
-      activeColor: _editorAccentColor(context),
+      activeColor: context.accentColor,
     );
   }
 }
@@ -272,7 +273,7 @@ class _EnumRow<T extends Enum> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final accent = _editorAccentColor(context);
+    final accent = context.accentColor;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -298,9 +299,4 @@ class _EnumRow<T extends Enum> extends StatelessWidget {
       ),
     );
   }
-}
-
-Color _editorAccentColor(BuildContext context) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  return isDark ? const Color(0xFFC7FF12) : const Color(0xFF238E54);
 }

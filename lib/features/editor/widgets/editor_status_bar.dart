@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../../../shared/app_theme.dart';
+
 class EditorStatusBar extends StatelessWidget {
   const EditorStatusBar({
     super.key,
@@ -15,7 +17,7 @@ class EditorStatusBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? const Color(0xFFC7FF12) : const Color(0xFF238E54);
+    final accent = context.accentColor;
 
     return SafeArea(
       top: false,

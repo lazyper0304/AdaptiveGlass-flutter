@@ -9,6 +9,8 @@ import '../../models/frame_template.dart';
 import '../../models/processing_settings.dart';
 import '../frame_processing_models.dart';
 import 'classic_info_border_support.dart';
+import 'renderer_utils.dart';
+import 'watermark_renderer.dart';
 
 class ClassicFrameRenderer {
   Future<ProcessingOutput> process({
@@ -111,7 +113,7 @@ class ClassicFrameRenderer {
     required RasterOutputFormat outputFormat,
     required int jpegQuality,
   }) async {
-    final sourceImage = await _decodeUiImage(sourceBytes);
+    final sourceImage = await decodeUiImage(sourceBytes);
     final classicInfoBorderLogo = settings.classicInfoBorder.enabled
         ? await loadClassicInfoBorderLogo(
             resolveClassicInfoBorderLogoAsset(settings.classicInfoBorder, exif),
@@ -138,7 +140,7 @@ class ClassicFrameRenderer {
       layoutInfo.targetWidth,
       layoutInfo.targetHeight,
     );
-    final bytes = await _encodeUiImage(rendered, outputFormat, jpegQuality);
+    final bytes = await encodeUiImage(rendered, outputFormat, jpegQuality);
 
     sourceImage.dispose();
     rendered.dispose();
@@ -171,7 +173,7 @@ void paintClassicFrameToCanvas({
     logo: classicInfoBorderLogo,
   );
   if (settings.watermark.enabled) {
-    _paintClassicWatermark(canvas, settings.watermark, exif, layoutInfo);
+    paintWatermark(canvas, settings.watermark, exif, layoutInfo);
   }
 }
 
@@ -241,7 +243,7 @@ Future<Map<String, Object?>> _processRasterTask(
   );
 
   return <String, Object?>{
-    'bytes': _encodeRaster(finalImage, outputFormat, jpegQuality),
+    'bytes': encodeRasterImage(finalImage, outputFormat, jpegQuality),
     'layout': layers.layoutInfo.toJson(),
     'render_scale': layers.renderScale,
   };
@@ -268,12 +270,12 @@ Future<Map<String, Object?>> _processPreviewCompositeRasterTask(
   );
 
   return <String, Object?>{
-    'composite_bytes': _encodeRaster(
+    'composite_bytes': encodeRasterImage(
       composite,
       RasterOutputFormat.jpeg.name,
       88,
     ),
-    'background_bytes': _encodeRaster(
+    'background_bytes': encodeRasterImage(
       layers.background,
       RasterOutputFormat.jpeg.name,
       88,
@@ -304,7 +306,7 @@ _buildClassicRasterLayers(
   var source = img.bakeOrientation(decoded).convert(numChannels: 4);
   var renderScale = 1.0;
   if (maxDimension != null) {
-    final resized = _downscaleForPreview(source, maxDimension);
+    final resized = downscaleForPreview(source, maxDimension);
     source = resized.image;
     renderScale = resized.scale;
   }
@@ -543,388 +545,6 @@ void _paintClassicForeground(
   }
 }
 
-void _paintClassicWatermark(
-  Canvas canvas,
-  WatermarkSettings settings,
-  ExifSnapshot exif,
-  LayoutInfo layoutInfo,
-) {
-  final templateText =
-      settings.text.contains('{') && settings.text.contains('}')
-      ? _formatTemplate(settings.text, exif)
-      : settings.text;
-
-  final exifModel = exif.model.isNotEmpty ? exif.model : exif.make;
-  final infoParts = <String>[
-    if (exif.iso.isNotEmpty) 'ISO${exif.iso}',
-    if (exif.fNumber.isNotEmpty) 'f/${exif.fNumber}',
-    if (exif.exposureTime.isNotEmpty) '${exif.exposureTime}s',
-    if (exif.focalLength.isNotEmpty) '${exif.focalLength}mm',
-  ];
-  final exifInfo = infoParts.join('  ');
-
-  String modelText = '';
-  String infoText = '';
-
-  switch (settings.textMode) {
-    case WatermarkModeOption.replace:
-      modelText = templateText.isNotEmpty ? templateText : '自定义文本';
-      break;
-    case WatermarkModeOption.fallback:
-      if (exifModel.isNotEmpty) {
-        modelText = exifModel;
-        infoText = exifInfo;
-      } else {
-        modelText = templateText.isNotEmpty ? templateText : '无 EXIF 信息';
-      }
-      break;
-    case WatermarkModeOption.append:
-      if (exifModel.isNotEmpty) {
-        modelText = exifModel;
-        infoText = exifInfo;
-        if (templateText.isNotEmpty) {
-          infoText = infoText.isNotEmpty
-              ? '$infoText  |  $templateText'
-              : templateText;
-        }
-      } else {
-        modelText = templateText;
-      }
-      break;
-  }
-
-  if (modelText.isEmpty && infoText.isEmpty) {
-    return;
-  }
-
-  final borderTop = layoutInfo.contentY.toDouble();
-  final borderBottom =
-      (layoutInfo.targetHeight -
-              (layoutInfo.contentY + layoutInfo.contentHeight))
-          .toDouble();
-  final borderLeft = layoutInfo.contentX.toDouble();
-  final borderRight =
-      (layoutInfo.targetWidth - (layoutInfo.contentX + layoutInfo.contentWidth))
-          .toDouble();
-
-  var baseFontSize = settings.fontSize.toDouble();
-  if (settings.autoSize) {
-    final isVertical =
-        settings.position.storageValue.contains('top') ||
-        settings.position.storageValue.contains('bottom');
-    if (settings.position == WatermarkPosition.manual) {
-      baseFontSize = layoutInfo.targetWidth * 0.03;
-    } else if (isVertical) {
-      final refBorder = math.max(borderTop, borderBottom);
-      baseFontSize = refBorder > 20
-          ? refBorder * 0.35
-          : layoutInfo.targetWidth * 0.03;
-    } else {
-      final refBorder = math.max(borderLeft, borderRight);
-      if (settings.position.storageValue.contains('left') ||
-          settings.position.storageValue.contains('right')) {
-        baseFontSize = refBorder > 20
-            ? math.min(refBorder * 0.15, layoutInfo.targetHeight * 0.05)
-            : layoutInfo.targetWidth * 0.03;
-      } else {
-        baseFontSize = layoutInfo.targetWidth * 0.03;
-      }
-    }
-    baseFontSize = math.max(12, baseFontSize);
-  }
-
-  baseFontSize = math.max(10, baseFontSize * settings.sizeScale);
-  final infoFontSize = math.max(10.0, baseFontSize * 0.7);
-  final textAlpha = settings.opacity / 100;
-  final shadowAlpha = 0.5 * textAlpha;
-  final textColor = settings.textColor == MonoColor.white
-      ? Colors.white.withValues(alpha: textAlpha)
-      : Colors.black.withValues(alpha: textAlpha);
-  final shadowColor = settings.textColor == MonoColor.white
-      ? Colors.black.withValues(alpha: shadowAlpha)
-      : Colors.white.withValues(alpha: shadowAlpha);
-  final fontFamily = settings.fontFamily == WatermarkFontFamily.smileySans
-      ? 'SmileySans'
-      : null;
-
-  final modelPainter = _buildTextPainter(
-    modelText,
-    TextStyle(
-      color: textColor,
-      fontSize: baseFontSize,
-      fontWeight: FontWeight.w700,
-      fontFamily: fontFamily,
-    ),
-  );
-  final infoPainter = _buildTextPainter(
-    infoText,
-    TextStyle(
-      color: textColor,
-      fontSize: infoFontSize,
-      fontWeight: FontWeight.w500,
-      fontFamily: fontFamily,
-    ),
-  );
-  final modelShadowPainter = _buildTextPainter(
-    modelText,
-    TextStyle(
-      color: shadowColor,
-      fontSize: baseFontSize,
-      fontWeight: FontWeight.w700,
-      fontFamily: fontFamily,
-    ),
-  );
-  final infoShadowPainter = _buildTextPainter(
-    infoText,
-    TextStyle(
-      color: shadowColor,
-      fontSize: infoFontSize,
-      fontWeight: FontWeight.w500,
-      fontFamily: fontFamily,
-    ),
-  );
-
-  final gap = (modelText.isNotEmpty && infoText.isNotEmpty)
-      ? baseFontSize * 0.8
-      : 0.0;
-  final totalWidth = modelPainter.width + gap + infoPainter.width;
-  final maxHeight = math.max(modelPainter.height, infoPainter.height);
-
-  final position = calculateClassicWatermarkPosition(
-    settings.position,
-    layoutInfo,
-    borderTop,
-    borderBottom,
-    borderLeft,
-    borderRight,
-    totalWidth,
-    maxHeight,
-  );
-  final x = position.dx + settings.customX.toDouble();
-  final y = position.dy + settings.customY.toDouble();
-
-  if (modelText.isNotEmpty) {
-    final modelY = y + (maxHeight - modelPainter.height);
-    modelShadowPainter.paint(canvas, Offset(x + 1, modelY + 1));
-    modelPainter.paint(canvas, Offset(x, modelY));
-  }
-
-  if (infoText.isNotEmpty) {
-    final infoX = x + modelPainter.width + gap;
-    final infoY = y + (maxHeight - infoPainter.height);
-    infoShadowPainter.paint(canvas, Offset(infoX + 1, infoY + 1));
-    infoPainter.paint(canvas, Offset(infoX, infoY));
-  }
-}
-
-// ignore: unused_element
-Future<Uint8List> _applyWatermark(
-  Uint8List rasterBytes,
-  WatermarkSettings settings,
-  ExifSnapshot exif,
-  LayoutInfo layoutInfo, {
-  required RasterOutputFormat outputFormat,
-  required int jpegQuality,
-}) async {
-  final templateText =
-      settings.text.contains('{') && settings.text.contains('}')
-      ? _formatTemplate(settings.text, exif)
-      : settings.text;
-
-  final exifModel = exif.model.isNotEmpty ? exif.model : exif.make;
-  final infoParts = <String>[
-    if (exif.iso.isNotEmpty) 'ISO${exif.iso}',
-    if (exif.fNumber.isNotEmpty) 'f/${exif.fNumber}',
-    if (exif.exposureTime.isNotEmpty) '${exif.exposureTime}s',
-    if (exif.focalLength.isNotEmpty) '${exif.focalLength}mm',
-  ];
-  final exifInfo = infoParts.join('  ');
-
-  String modelText = '';
-  String infoText = '';
-
-  switch (settings.textMode) {
-    case WatermarkModeOption.replace:
-      modelText = templateText.isNotEmpty ? templateText : '自定义文本';
-      break;
-    case WatermarkModeOption.fallback:
-      if (exifModel.isNotEmpty) {
-        modelText = exifModel;
-        infoText = exifInfo;
-      } else {
-        modelText = templateText.isNotEmpty ? templateText : '无 EXIF 信息';
-      }
-      break;
-    case WatermarkModeOption.append:
-      if (exifModel.isNotEmpty) {
-        modelText = exifModel;
-        infoText = exifInfo;
-        if (templateText.isNotEmpty) {
-          infoText = infoText.isNotEmpty
-              ? '$infoText  |  $templateText'
-              : templateText;
-        }
-      } else {
-        modelText = templateText;
-      }
-      break;
-  }
-
-  if (modelText.isEmpty && infoText.isEmpty) {
-    return rasterBytes;
-  }
-
-  final baseImage = await _decodeUiImage(rasterBytes);
-  final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder);
-
-  canvas.drawImage(baseImage, Offset.zero, Paint());
-
-  final borderTop = layoutInfo.contentY.toDouble();
-  final borderBottom =
-      (layoutInfo.targetHeight -
-              (layoutInfo.contentY + layoutInfo.contentHeight))
-          .toDouble();
-  final borderLeft = layoutInfo.contentX.toDouble();
-  final borderRight =
-      (layoutInfo.targetWidth - (layoutInfo.contentX + layoutInfo.contentWidth))
-          .toDouble();
-
-  var baseFontSize = settings.fontSize.toDouble();
-  if (settings.autoSize) {
-    final isVertical =
-        settings.position.storageValue.contains('top') ||
-        settings.position.storageValue.contains('bottom');
-    if (settings.position == WatermarkPosition.manual) {
-      baseFontSize = layoutInfo.targetWidth * 0.03;
-    } else if (isVertical) {
-      final refBorder = math.max(borderTop, borderBottom);
-      baseFontSize = refBorder > 20
-          ? refBorder * 0.35
-          : layoutInfo.targetWidth * 0.03;
-    } else {
-      final refBorder = math.max(borderLeft, borderRight);
-      if (settings.position.storageValue.contains('left') ||
-          settings.position.storageValue.contains('right')) {
-        baseFontSize = refBorder > 20
-            ? math.min(refBorder * 0.15, layoutInfo.targetHeight * 0.05)
-            : layoutInfo.targetWidth * 0.03;
-      } else {
-        baseFontSize = layoutInfo.targetWidth * 0.03;
-      }
-    }
-    baseFontSize = math.max(12, baseFontSize);
-  }
-
-  baseFontSize = math.max(10, baseFontSize * settings.sizeScale);
-  final infoFontSize = math.max(10, baseFontSize * 0.7);
-  final textAlpha = settings.opacity / 100;
-  final shadowAlpha = 0.5 * textAlpha;
-  final textColor = settings.textColor == MonoColor.white
-      ? Colors.white.withValues(alpha: textAlpha)
-      : Colors.black.withValues(alpha: textAlpha);
-  final shadowColor = settings.textColor == MonoColor.white
-      ? Colors.black.withValues(alpha: shadowAlpha)
-      : Colors.white.withValues(alpha: shadowAlpha);
-  final fontFamily = settings.fontFamily == WatermarkFontFamily.smileySans
-      ? 'SmileySans'
-      : null;
-
-  final modelPainter = _buildTextPainter(
-    modelText,
-    TextStyle(
-      color: textColor,
-      fontSize: baseFontSize,
-      fontWeight: FontWeight.w700,
-      fontFamily: fontFamily,
-    ),
-  );
-  final infoPainter = _buildTextPainter(
-    infoText,
-    TextStyle(
-      color: textColor,
-      fontSize: infoFontSize.toDouble(),
-      fontWeight: FontWeight.w500,
-      fontFamily: fontFamily,
-    ),
-  );
-  final modelShadowPainter = _buildTextPainter(
-    modelText,
-    TextStyle(
-      color: shadowColor,
-      fontSize: baseFontSize,
-      fontWeight: FontWeight.w700,
-      fontFamily: fontFamily,
-    ),
-  );
-  final infoShadowPainter = _buildTextPainter(
-    infoText,
-    TextStyle(
-      color: shadowColor,
-      fontSize: infoFontSize.toDouble(),
-      fontWeight: FontWeight.w500,
-      fontFamily: fontFamily,
-    ),
-  );
-
-  final gap = (modelText.isNotEmpty && infoText.isNotEmpty)
-      ? baseFontSize * 0.8
-      : 0.0;
-  final totalWidth = modelPainter.width + gap + infoPainter.width;
-  final maxHeight = math.max(modelPainter.height, infoPainter.height);
-
-  final position = calculateClassicWatermarkPosition(
-    settings.position,
-    layoutInfo,
-    borderTop,
-    borderBottom,
-    borderLeft,
-    borderRight,
-    totalWidth,
-    maxHeight,
-  );
-  final x = position.dx + settings.customX.toDouble();
-  final y = position.dy + settings.customY.toDouble();
-
-  if (modelText.isNotEmpty) {
-    final modelY = y + (maxHeight - modelPainter.height);
-    modelShadowPainter.paint(canvas, Offset(x + 1, modelY + 1));
-    modelPainter.paint(canvas, Offset(x, modelY));
-  }
-
-  if (infoText.isNotEmpty) {
-    final infoX = x + modelPainter.width + gap;
-    final infoY = y + (maxHeight - infoPainter.height);
-    infoShadowPainter.paint(canvas, Offset(infoX + 1, infoY + 1));
-    infoPainter.paint(canvas, Offset(infoX, infoY));
-  }
-
-  final picture = recorder.endRecording();
-  final rendered = await picture.toImage(
-    layoutInfo.targetWidth,
-    layoutInfo.targetHeight,
-  );
-  final byteData = await rendered.toByteData(format: ui.ImageByteFormat.png);
-  baseImage.dispose();
-  rendered.dispose();
-  picture.dispose();
-
-  if (byteData == null) {
-    throw StateError('无法渲染水印。');
-  }
-
-  final pngBytes = byteData.buffer.asUint8List();
-  if (outputFormat == RasterOutputFormat.jpeg) {
-    final decoded = img.decodeImage(pngBytes);
-    if (decoded == null) {
-      throw StateError('预览图片编码失败。');
-    }
-    return img.encodeJpg(decoded, quality: jpegQuality);
-  }
-
-  return pngBytes;
-}
-
 Future<Uint8List> _applyClassicDecorations({
   required Uint8List rasterBytes,
   required ProcessingSettings settings,
@@ -933,7 +553,7 @@ Future<Uint8List> _applyClassicDecorations({
   required RasterOutputFormat outputFormat,
   required int jpegQuality,
 }) async {
-  final baseImage = await _decodeUiImage(rasterBytes);
+  final baseImage = await decodeUiImage(rasterBytes);
   final classicInfoBorderLogo = settings.classicInfoBorder.enabled
       ? await loadClassicInfoBorderLogo(
           resolveClassicInfoBorderLogoAsset(settings.classicInfoBorder, exif),
@@ -951,7 +571,7 @@ Future<Uint8List> _applyClassicDecorations({
     logo: classicInfoBorderLogo,
   );
   if (settings.watermark.enabled) {
-    _paintClassicWatermark(canvas, settings.watermark, exif, layoutInfo);
+    paintWatermark(canvas, settings.watermark, exif, layoutInfo);
   }
 
   final picture = recorder.endRecording();
@@ -987,73 +607,6 @@ bool _needsClassicDecorationPass(ProcessingSettings settings) {
 
 bool _usesPlainBackgroundForWatermarkBorder(ProcessingSettings settings) {
   return settings.template == FrameTemplate.watermarkBorder;
-}
-
-Offset calculateClassicWatermarkPosition(
-  WatermarkPosition position,
-  LayoutInfo layoutInfo,
-  double borderTop,
-  double borderBottom,
-  double borderLeft,
-  double borderRight,
-  double totalWidth,
-  double maxHeight,
-) {
-  double x;
-  double y;
-  switch (position) {
-    case WatermarkPosition.topCenter:
-    case WatermarkPosition.topLeft:
-    case WatermarkPosition.topRight:
-      y = borderTop > 20 ? (borderTop / 2) - (maxHeight / 2) : 20;
-      break;
-    case WatermarkPosition.bottomCenter:
-    case WatermarkPosition.bottomLeft:
-    case WatermarkPosition.bottomRight:
-      if (borderBottom > 20) {
-        final startY = layoutInfo.contentY + layoutInfo.contentHeight;
-        y = startY + (borderBottom / 2) - (maxHeight / 2);
-      } else {
-        y = layoutInfo.targetHeight - maxHeight - 20;
-      }
-      break;
-    case WatermarkPosition.center:
-    case WatermarkPosition.centerLeft:
-    case WatermarkPosition.centerRight:
-    case WatermarkPosition.manual:
-      y = (layoutInfo.targetHeight - maxHeight) / 2;
-      break;
-  }
-
-  switch (position) {
-    case WatermarkPosition.topLeft:
-    case WatermarkPosition.bottomLeft:
-      x = 20;
-      break;
-    case WatermarkPosition.topRight:
-    case WatermarkPosition.bottomRight:
-      x = layoutInfo.targetWidth - totalWidth - 20;
-      break;
-    case WatermarkPosition.centerLeft:
-      x = borderLeft > 20 ? (borderLeft / 2) - (totalWidth / 2) : 20;
-      break;
-    case WatermarkPosition.centerRight:
-      if (borderRight > 20) {
-        final startX = layoutInfo.contentX + layoutInfo.contentWidth;
-        x = startX + (borderRight / 2) - (totalWidth / 2);
-      } else {
-        x = layoutInfo.targetWidth - totalWidth - 20;
-      }
-      break;
-    case WatermarkPosition.topCenter:
-    case WatermarkPosition.bottomCenter:
-    case WatermarkPosition.center:
-    case WatermarkPosition.manual:
-      x = (layoutInfo.targetWidth - totalWidth) / 2;
-      break;
-  }
-
-  return Offset(x, y);
 }
 
 (int, int) _calculateTargetSize(
@@ -1239,43 +792,15 @@ img.Image _applyBorder(img.Image image, ProcessingSettings settings) {
   return output;
 }
 
-Uint8List _encodeRaster(img.Image image, String format, int jpegQuality) {
-  return switch (format) {
-    'jpeg' => img.encodeJpg(image, quality: jpegQuality),
-    _ => img.encodePng(image),
-  };
-}
-
-({img.Image image, double scale}) _downscaleForPreview(
-  img.Image image,
-  int maxDimension,
-) {
-  final longestEdge = math.max(image.width, image.height);
-  if (longestEdge <= maxDimension) {
-    return (image: image, scale: 1.0);
-  }
-
-  final scale = maxDimension / longestEdge;
-  return (
-    image: img.copyResize(
-      image,
-      width: math.max(1, (image.width * scale).round()),
-      height: math.max(1, (image.height * scale).round()),
-      interpolation: img.Interpolation.linear,
-    ),
-    scale: scale,
-  );
-}
-
 ProcessingSettings _scaleSettingsForPreview(
   ProcessingSettings settings,
   double scale,
 ) {
   return settings.copyWith(
-    blurRadius: _scalePositiveInt(settings.blurRadius, scale),
-    borderWidth: _scalePositiveInt(settings.borderWidth, scale),
-    cornerRadius: _scalePositiveInt(settings.cornerRadius, scale),
-    shadowSize: _scalePositiveInt(settings.shadowSize, scale),
+    blurRadius: scalePositiveInt(settings.blurRadius, scale),
+    borderWidth: scalePositiveInt(settings.borderWidth, scale),
+    cornerRadius: scalePositiveInt(settings.cornerRadius, scale),
+    shadowSize: scalePositiveInt(settings.shadowSize, scale),
   );
 }
 
@@ -1284,49 +809,13 @@ WatermarkSettings _scaleWatermarkSettings(
   double scale,
 ) {
   return settings.copyWith(
-    fontSize: _scalePositiveInt(settings.fontSize, scale),
+    fontSize: scalePositiveInt(settings.fontSize, scale),
     customX: (settings.customX * scale).round(),
     customY: (settings.customY * scale).round(),
   );
 }
 
-int _scalePositiveInt(int value, double scale) {
-  if (value <= 0) {
-    return value;
-  }
-  return math.max(1, (value * scale).round());
-}
-
 int _clampToByte(num value) => value.clamp(0, 255).round();
-
-String _formatTemplate(String template, ExifSnapshot exif) {
-  return template
-      .replaceAll('{Model}', exif.model)
-      .replaceAll('{Make}', exif.make)
-      .replaceAll('{ISO}', exif.iso.isNotEmpty ? 'ISO${exif.iso}' : '')
-      .replaceAll(
-        '{FNumber}',
-        exif.fNumber.isNotEmpty ? 'f/${exif.fNumber}' : '',
-      )
-      .replaceAll(
-        '{ExposureTime}',
-        exif.exposureTime.isNotEmpty ? '${exif.exposureTime}s' : '',
-      )
-      .replaceAll(
-        '{FocalLength}',
-        exif.focalLength.isNotEmpty ? '${exif.focalLength}mm' : '',
-      );
-}
-
-TextPainter _buildTextPainter(String text, TextStyle style) {
-  final painter = TextPainter(
-    text: TextSpan(text: text, style: style),
-    textDirection: TextDirection.ltr,
-    maxLines: 1,
-  );
-  painter.layout();
-  return painter;
-}
 
 Rect _coverSourceRect(
   double sourceWidth,
@@ -1351,31 +840,3 @@ Color _monoColor(MonoColor color) =>
 
 double _boxShadowBlurToSigma(double blurRadius) =>
     blurRadius > 0 ? blurRadius * 0.57735 + 0.5 : 0;
-
-Future<ui.Image> _decodeUiImage(Uint8List bytes) async {
-  final codec = await ui.instantiateImageCodec(bytes);
-  final frame = await codec.getNextFrame();
-  return frame.image;
-}
-
-Future<Uint8List> _encodeUiImage(
-  ui.Image image,
-  RasterOutputFormat outputFormat,
-  int jpegQuality,
-) async {
-  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-  if (byteData == null) {
-    throw StateError('无法导出图像。');
-  }
-
-  final pngBytes = byteData.buffer.asUint8List();
-  if (outputFormat == RasterOutputFormat.jpeg) {
-    final decoded = img.decodeImage(pngBytes);
-    if (decoded == null) {
-      throw StateError('无法编码 JPG 输出。');
-    }
-    return img.encodeJpg(decoded, quality: jpegQuality);
-  }
-
-  return pngBytes;
-}

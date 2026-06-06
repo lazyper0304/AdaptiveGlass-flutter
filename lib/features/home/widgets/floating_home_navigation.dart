@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
+import '../../../shared/app_theme.dart';
+
 class FloatingHomeNavigation extends StatelessWidget {
   const FloatingHomeNavigation({
     super.key,
@@ -24,7 +26,7 @@ class FloatingHomeNavigation extends StatelessWidget {
           child: GlassBottomBar(
             selectedIndex: selectedIndex,
             onTabSelected: onSelected,
-            interactionGlowColor: _homeAccentColor(context),
+            interactionGlowColor: context.accentColor,
             selectedIconColor: Colors.black,
             unselectedIconColor: Colors.black,
             quality: GlassQuality.premium,
@@ -43,9 +45,4 @@ class FloatingHomeNavigation extends StatelessWidget {
       ),
     );
   }
-}
-
-Color _homeAccentColor(BuildContext context) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  return isDark ? const Color(0xFFC7FF12) : const Color(0xFF238E54);
 }

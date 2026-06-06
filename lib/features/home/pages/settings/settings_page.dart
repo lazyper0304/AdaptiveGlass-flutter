@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../services/update_checker_service.dart';
+import '../../../../shared/app_theme.dart';
 import '../../widgets/common_home_widgets.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -85,7 +86,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _showUpdateDialog(UpdateInfo info) {
     final colors = Theme.of(context).colorScheme;
-    final accent = homeAccentColor(context);
+    final accent = context.accentColor;
 
     showDialog(
       context: context,
@@ -252,7 +253,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildVersionInfo() {
     final colors = Theme.of(context).colorScheme;
-    final accent = homeAccentColor(context);
+    final accent = context.accentColor;
 
     return Row(
       children: [
@@ -293,7 +294,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildUpdateCheckButton() {
     final colors = Theme.of(context).colorScheme;
-    final accent = homeAccentColor(context);
+    final accent = context.accentColor;
 
     return InkWell(
       onTap: _isChecking ? null : _checkForUpdates,
@@ -355,7 +356,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildChangelogButton() {
     final colors = Theme.of(context).colorScheme;
-    final accent = homeAccentColor(context);
+    final accent = context.accentColor;
 
     return InkWell(
       onTap: () {

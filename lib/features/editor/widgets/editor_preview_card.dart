@@ -7,6 +7,7 @@ import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import '../../../models/frame_template.dart';
 import '../../../models/processing_settings.dart';
 import '../../../services/frame_processing_models.dart';
+import '../../../shared/app_theme.dart';
 import 'previews/classic_frame_preview.dart';
 import 'previews/color_border_preview.dart';
 import 'previews/color_walk_preview.dart';
@@ -125,7 +126,7 @@ class _EditorPreviewCardState extends State<EditorPreviewCard> {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? const Color(0xFFC7FF12) : const Color(0xFF238E54);
+    final accent = context.accentColor;
 
     return GlassPanel(
       padding: const EdgeInsets.all(16),

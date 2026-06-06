@@ -8,6 +8,8 @@ import 'package:image/image.dart' as img;
 import '../../models/color_walk_settings.dart';
 import '../../models/processing_settings.dart';
 import '../frame_processing_models.dart';
+import 'palette_extractor.dart';
+import 'renderer_utils.dart';
 
 const double _colorWalkMinCanvasWidth = 560;
 const double _colorWalkMinCanvasHeight = 560;
@@ -18,9 +20,9 @@ class ColorWalkFrameRenderer {
     int count = 5,
   }) async {
     try {
-      return await _extractPaletteWithUiCodec(sourceBytes, count: count);
+      return await extractPaletteWithUiCodec(sourceBytes, count: count);
     } catch (_) {
-      final result = await compute(_extractPaletteTask, <String, Object?>{
+      final result = await compute(extractPaletteTask, <String, Object?>{
         'bytes': sourceBytes,
         'count': count,
       });
@@ -97,11 +99,11 @@ class ColorWalkFrameRenderer {
     required RasterOutputFormat outputFormat,
     required int jpegQuality,
   }) async {
-    final paletteFuture = compute(_extractPaletteTask, <String, Object?>{
+    final paletteFuture = compute(extractPaletteTask, <String, Object?>{
       'bytes': sourceBytes,
       'count': 5,
     });
-    final image = await _decodeUiImage(sourceBytes);
+    final image = await decodeUiImage(sourceBytes);
     final paletteJson = await paletteFuture;
     final palette = paletteJson
         .map((item) => PaletteSwatch.fromJson(Map<String, dynamic>.from(item)))
@@ -122,17 +124,17 @@ class ColorWalkFrameRenderer {
     );
     final logicalTargetWidth = math.max(1, metrics.canvasWidth.round());
     final logicalTargetHeight = math.max(1, metrics.canvasHeight.round());
-    final exportScale = _calculateColorWalkExportScale(
+    final exportScale = calculateExportScale(
       logicalTargetWidth,
       logicalTargetHeight,
     );
     final layoutInfo = LayoutInfo(
-      targetWidth: _scaleDimension(logicalTargetWidth, exportScale),
-      targetHeight: _scaleDimension(logicalTargetHeight, exportScale),
-      contentX: _scalePosition(metrics.contentX, exportScale),
-      contentY: _scalePosition(metrics.contentY, exportScale),
-      contentWidth: _scaleDimension(metrics.contentWidth, exportScale),
-      contentHeight: _scaleDimension(metrics.contentHeight, exportScale),
+      targetWidth: scaleDimension(logicalTargetWidth, exportScale),
+      targetHeight: scaleDimension(logicalTargetHeight, exportScale),
+      contentX: scalePosition(metrics.contentX, exportScale),
+      contentY: scalePosition(metrics.contentY, exportScale),
+      contentWidth: scaleDimension(metrics.contentWidth, exportScale),
+      contentHeight: scaleDimension(metrics.contentHeight, exportScale),
     );
 
     final recorder = ui.PictureRecorder();
@@ -157,7 +159,7 @@ class ColorWalkFrameRenderer {
       layoutInfo.targetWidth,
       layoutInfo.targetHeight,
     );
-    final bytes = await _encodeUiImage(rendered, outputFormat, jpegQuality);
+    final bytes = await encodeUiImage(rendered, outputFormat, jpegQuality);
 
     image.dispose();
     rendered.dispose();
@@ -215,8 +217,8 @@ ColorWalkLayoutMetrics calculateColorWalkLayoutMetrics({
     case ColorWalkPosition.top:
       canvasWidth = math.max(_colorWalkMinCanvasWidth, contentWidth);
       paletteAreaWidth = canvasWidth;
-      paletteAreaHeight = math.max(180.0, canvasWidth * 0.4);
-      canvasHeight = contentHeight + paletteAreaHeight;
+      canvasHeight = math.max(_colorWalkMinCanvasHeight, contentHeight / 0.55);
+      paletteAreaHeight = canvasHeight * 0.45;
       contentX = (canvasWidth - contentWidth) / 2;
       contentY = paletteAreaHeight;
       paletteAreaOffset = Offset(0, 0);
@@ -224,8 +226,8 @@ ColorWalkLayoutMetrics calculateColorWalkLayoutMetrics({
     case ColorWalkPosition.bottom:
       canvasWidth = math.max(_colorWalkMinCanvasWidth, contentWidth);
       paletteAreaWidth = canvasWidth;
-      paletteAreaHeight = math.max(180.0, canvasWidth * 0.4);
-      canvasHeight = contentHeight + paletteAreaHeight;
+      canvasHeight = math.max(_colorWalkMinCanvasHeight, contentHeight / 0.55);
+      paletteAreaHeight = canvasHeight * 0.45;
       contentX = (canvasWidth - contentWidth) / 2;
       contentY = 0;
       paletteAreaOffset = Offset(0, contentHeight);
@@ -233,8 +235,8 @@ ColorWalkLayoutMetrics calculateColorWalkLayoutMetrics({
     case ColorWalkPosition.left:
       canvasHeight = math.max(_colorWalkMinCanvasHeight, contentHeight);
       paletteAreaHeight = canvasHeight;
-      paletteAreaWidth = math.max(180.0, canvasHeight * 0.4);
-      canvasWidth = contentWidth + paletteAreaWidth;
+      canvasWidth = math.max(_colorWalkMinCanvasWidth, contentWidth / 0.55);
+      paletteAreaWidth = canvasWidth * 0.45;
       contentX = paletteAreaWidth;
       contentY = (canvasHeight - contentHeight) / 2;
       paletteAreaOffset = Offset(0, 0);
@@ -242,8 +244,8 @@ ColorWalkLayoutMetrics calculateColorWalkLayoutMetrics({
     case ColorWalkPosition.right:
       canvasHeight = math.max(_colorWalkMinCanvasHeight, contentHeight);
       paletteAreaHeight = canvasHeight;
-      paletteAreaWidth = math.max(180.0, canvasHeight * 0.4);
-      canvasWidth = contentWidth + paletteAreaWidth;
+      canvasWidth = math.max(_colorWalkMinCanvasWidth, contentWidth / 0.55);
+      paletteAreaWidth = canvasWidth * 0.45;
       contentX = 0;
       contentY = (canvasHeight - contentHeight) / 2;
       paletteAreaOffset = Offset(contentWidth, 0);
@@ -291,7 +293,7 @@ Future<Map<String, Object?>> _processRasterTask(
   );
 
   return <String, Object?>{
-    'bytes': _encodeRaster(finalImage, outputFormat, jpegQuality),
+    'bytes': encodeRasterImage(finalImage, outputFormat, jpegQuality),
     'layout': layers.layoutInfo.toJson(),
     'render_scale': layers.renderScale,
   };
@@ -320,12 +322,12 @@ Future<Map<String, Object?>> _processPreviewCompositeRasterTask(
   );
 
   return <String, Object?>{
-    'composite_bytes': _encodeRaster(
+    'composite_bytes': encodeRasterImage(
       composite,
       RasterOutputFormat.jpeg.name,
       88,
     ),
-    'background_bytes': _encodeRaster(
+    'background_bytes': encodeRasterImage(
       layers.background,
       RasterOutputFormat.jpeg.name,
       88,
@@ -356,7 +358,7 @@ _buildColorWalkLayers({
   var source = img.bakeOrientation(decoded).convert(numChannels: 4);
   var renderScale = 1.0;
   if (maxDimension != null) {
-    final resized = _downscaleForPreview(source, maxDimension);
+    final resized = downscaleForPreview(source, maxDimension);
     source = resized.image;
     renderScale = resized.scale;
   }
@@ -365,7 +367,7 @@ _buildColorWalkLayers({
   final normalizedSettings = renderScale >= 0.999
       ? colorWalkSettings
       : colorWalkSettings.copyWith(
-          contentScale: _scalePositiveInt(colorWalkSettings.contentScale, renderScale),
+          contentScale: scalePositiveInt(colorWalkSettings.contentScale, renderScale),
         );
 
   final metrics = calculateColorWalkLayoutMetrics(
@@ -386,7 +388,7 @@ _buildColorWalkLayers({
       )
       .convert(numChannels: 4);
 
-  final palette = _extractPaletteSwatches(source, count: 5);
+  final palette = extractPaletteSwatches(source, count: 5);
   final selectedColor = palette.isNotEmpty &&
           normalizedSettings.selectedColorIndex >= 0 &&
           normalizedSettings.selectedColorIndex < palette.length
@@ -438,7 +440,7 @@ img.Image _composeColorWalkImage({
     dstY: layoutInfo.contentY,
   );
 
-  final paletteAreaSize = (canvas.width * 0.4).round();
+  final paletteAreaSize = (canvas.width * 0.45).round();
   _paintColorWalkPaletteArea(
     canvas,
     palette,
@@ -562,268 +564,6 @@ void _paintColorWalkPaletteArea(
     );
   }
 }
-
-List<PaletteSwatch> _extractPaletteSwatches(
-  img.Image image, {
-  required int count,
-}) {
-  final sampled = img.copyResize(
-    image,
-    width: 72,
-    height: math.max(1, (image.height * (72 / image.width)).round()),
-    interpolation: img.Interpolation.linear,
-  );
-  final buckets = <int, _PaletteBucket>{};
-
-  for (final pixel in sampled) {
-    if (pixel.a < 200) {
-      continue;
-    }
-    final r = pixel.r.toInt();
-    final g = pixel.g.toInt();
-    final b = pixel.b.toInt();
-    final saturation =
-        math.max(r, math.max(g, b)) - math.min(r, math.min(g, b));
-    final brightness = (r + g + b) / 3;
-    final weight = (saturation + (brightness < 240 ? 28 : 8)).round();
-    final key = ((r ~/ 32) << 10) | ((g ~/ 32) << 5) | (b ~/ 32);
-    buckets.putIfAbsent(key, _PaletteBucket.new).add(r, g, b, weight);
-  }
-
-  return _buildPaletteFromBuckets(buckets, count: count);
-}
-
-List<PaletteSwatch> _buildPaletteFromBuckets(
-  Map<int, _PaletteBucket> buckets, {
-  required int count,
-}) {
-  final sorted = buckets.values.toList()
-    ..sort((a, b) => b.weight.compareTo(a.weight));
-
-  final palette = <PaletteSwatch>[];
-  for (final bucket in sorted) {
-    final candidate = bucket.toColor();
-    if (palette.every((color) => _colorDistance(color, candidate) >= 84)) {
-      palette.add(candidate);
-    }
-    if (palette.length == count) {
-      break;
-    }
-  }
-
-  if (palette.length < count) {
-    for (final bucket in sorted) {
-      final candidate = bucket.toColor();
-      final exists = palette.any(
-        (color) =>
-            color.red == candidate.red &&
-            color.green == candidate.green &&
-            color.blue == candidate.blue,
-      );
-      if (!exists) {
-        palette.add(candidate);
-      }
-      if (palette.length == count) {
-        break;
-      }
-    }
-  }
-
-  while (palette.length < count) {
-    palette.add(
-      palette.isNotEmpty
-          ? palette.last
-          : const PaletteSwatch(red: 236, green: 226, blue: 214),
-    );
-  }
-
-  return palette;
-}
-
-int _colorDistance(PaletteSwatch left, PaletteSwatch right) {
-  return ((left.red - right.red).abs() +
-          (left.green - right.green).abs() +
-          (left.blue - right.blue).abs())
-      .round();
-}
-
-List<Map<String, int>> _extractPaletteTask(Map<String, Object?> input) {
-  final sourceBytes = input['bytes']! as Uint8List;
-  final count = (input['count'] as num?)?.round() ?? 5;
-  final decoded = img.decodeImage(sourceBytes);
-  if (decoded == null) {
-    return List.generate(
-      count,
-      (_) => const PaletteSwatch(red: 236, green: 226, blue: 214).toJson(),
-    );
-  }
-
-  final source = img.bakeOrientation(decoded).convert(numChannels: 4);
-  return _extractPaletteSwatches(
-    source,
-    count: count,
-  ).map((item) => item.toJson()).toList();
-}
-
-Future<List<PaletteSwatch>> _extractPaletteWithUiCodec(
-  Uint8List sourceBytes, {
-  required int count,
-}) async {
-  const sampleLongEdge = 96.0;
-  final buffer = await ui.ImmutableBuffer.fromUint8List(sourceBytes);
-  ui.ImageDescriptor? descriptor;
-
-  try {
-    descriptor = await ui.ImageDescriptor.encoded(buffer);
-    final sourceWidth = math.max(1, descriptor.width);
-    final sourceHeight = math.max(1, descriptor.height);
-    final scale = math.min(
-      1.0,
-      sampleLongEdge / math.max(sourceWidth, sourceHeight),
-    );
-    final targetWidth = math.max(1, (sourceWidth * scale).round());
-    final targetHeight = math.max(1, (sourceHeight * scale).round());
-    final codec = await descriptor.instantiateCodec(
-      targetWidth: targetWidth,
-      targetHeight: targetHeight,
-    );
-
-    try {
-      final frame = await codec.getNextFrame();
-      final image = frame.image;
-      try {
-        final byteData = await image.toByteData(
-          format: ui.ImageByteFormat.rawRgba,
-        );
-        if (byteData == null) {
-          throw StateError('无法读取预览取色像素。');
-        }
-        return _extractPaletteSwatchesFromRgba(
-          byteData.buffer.asUint8List(
-            byteData.offsetInBytes,
-            byteData.lengthInBytes,
-          ),
-          width: image.width,
-          height: image.height,
-          count: count,
-        );
-      } finally {
-        image.dispose();
-      }
-    } finally {
-      codec.dispose();
-    }
-  } finally {
-    descriptor?.dispose();
-    buffer.dispose();
-  }
-}
-
-List<PaletteSwatch> _extractPaletteSwatchesFromRgba(
-  Uint8List rgbaBytes, {
-  required int width,
-  required int height,
-  required int count,
-}) {
-  final buckets = <int, _PaletteBucket>{};
-  final pixelCount = math.min(width * height, rgbaBytes.length ~/ 4);
-
-  for (var pixelIndex = 0; pixelIndex < pixelCount; pixelIndex++) {
-    final offset = pixelIndex * 4;
-    final r = rgbaBytes[offset];
-    final g = rgbaBytes[offset + 1];
-    final b = rgbaBytes[offset + 2];
-    final a = rgbaBytes[offset + 3];
-    if (a < 200) {
-      continue;
-    }
-
-    final saturation =
-        math.max(r, math.max(g, b)) - math.min(r, math.min(g, b));
-    final brightness = (r + g + b) / 3;
-    final weight = (saturation + (brightness < 240 ? 28 : 8)).round();
-    final key = ((r ~/ 32) << 10) | ((g ~/ 32) << 5) | (b ~/ 32);
-    buckets.putIfAbsent(key, _PaletteBucket.new).add(r, g, b, weight);
-  }
-
-  return _buildPaletteFromBuckets(buckets, count: count);
-}
-
-class _PaletteBucket {
-  int red = 0;
-  int green = 0;
-  int blue = 0;
-  int weight = 0;
-
-  void add(int r, int g, int b, int nextWeight) {
-    red += r * nextWeight;
-    green += g * nextWeight;
-    blue += b * nextWeight;
-    weight += nextWeight;
-  }
-
-  PaletteSwatch toColor() {
-    if (weight == 0) {
-      return const PaletteSwatch(red: 236, green: 226, blue: 214);
-    }
-    return PaletteSwatch(
-      red: (red / weight).round(),
-      green: (green / weight).round(),
-      blue: (blue / weight).round(),
-    );
-  }
-}
-
-Uint8List _encodeRaster(img.Image image, String format, int jpegQuality) {
-  return switch (format) {
-    'jpeg' => img.encodeJpg(image, quality: jpegQuality),
-    _ => img.encodePng(image),
-  };
-}
-
-({img.Image image, double scale}) _downscaleForPreview(
-  img.Image image,
-  int maxDimension,
-) {
-  final longestEdge = math.max(image.width, image.height);
-  if (longestEdge <= maxDimension) {
-    return (image: image, scale: 1.0);
-  }
-
-  final scale = maxDimension / longestEdge;
-  return (
-    image: img.copyResize(
-      image,
-      width: math.max(1, (image.width * scale).round()),
-      height: math.max(1, (image.height * scale).round()),
-      interpolation: img.Interpolation.linear,
-    ),
-    scale: scale,
-  );
-}
-
-int _scalePositiveInt(int value, double scale) {
-  if (value <= 0) {
-    return value;
-  }
-  return math.max(1, (value * scale).round());
-}
-
-double _calculateColorWalkExportScale(int width, int height) {
-  const targetLongEdge = 4096.0;
-  const maxScale = 2.0;
-  final longestEdge = math.max(width, height).toDouble();
-  if (longestEdge >= targetLongEdge) {
-    return 1.0;
-  }
-  return math.min(maxScale, targetLongEdge / longestEdge);
-}
-
-int _scaleDimension(num value, double scale) =>
-    math.max(1, (value * scale).round());
-
-int _scalePosition(num value, double scale) =>
-    math.max(0, (value * scale).round());
 
 void _paintColorWalkExport(
   Canvas canvas,
@@ -965,32 +705,4 @@ void _paintPaletteArea(
       Offset(textX - datePainter.width / 2, dateY),
     );
   }
-}
-
-Future<ui.Image> _decodeUiImage(Uint8List bytes) async {
-  final codec = await ui.instantiateImageCodec(bytes);
-  final frame = await codec.getNextFrame();
-  return frame.image;
-}
-
-Future<Uint8List> _encodeUiImage(
-  ui.Image image,
-  RasterOutputFormat outputFormat,
-  int jpegQuality,
-) async {
-  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-  if (byteData == null) {
-    throw StateError('无法导出图像。');
-  }
-
-  final pngBytes = byteData.buffer.asUint8List();
-  if (outputFormat == RasterOutputFormat.jpeg) {
-    final decoded = img.decodeImage(pngBytes);
-    if (decoded == null) {
-      throw StateError('无法编码 JPG 输出。');
-    }
-    return img.encodeJpg(decoded, quality: jpegQuality);
-  }
-
-  return pngBytes;
 }

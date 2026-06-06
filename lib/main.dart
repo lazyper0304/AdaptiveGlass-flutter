@@ -4,46 +4,28 @@ import 'package:go_transitions/go_transitions.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 
-import 'features/home/adaptive_glass_home_page.dart'
-    show themeMode, initializeThemeModePreference;
-import 'app/app_router.dart';
+import 'presentation/routes/routes.dart';
+import 'shared/theme_controller.dart';
 
 part 'main.g.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await initializeThemeModePreference();
+
+  await initializeThemeMode();
   await LiquidGlassWidgets.initialize();
-  
-  // 启用性能优化
+
   debugProfileBuildsEnabled = false;
   debugProfilePaintsEnabled = false;
   debugProfileLayoutsEnabled = false;
   debugRepaintRainbowEnabled = false;
   debugPaintSizeEnabled = false;
-  
-  // 启用 GPU 优化的渲染
-  RendererBinding.instance.ensureSemantics();
-  
-  runApp(LiquidGlassWidgets.wrap(child: const App()));
+
+  runApp(const App());
 }
 
-class App extends StatefulWidget {
+class App extends StatelessWidget {
   const App({super.key});
-
-  @override
-  State<App> createState() => _AppState();
-}
-
-class _AppState extends State<App> {
-  @override
-  void initState() {
-    // TODO: implement initState
-    super.initState();
-
-    GoTransition.defaultCurve = Curves.easeInOut;
-    GoTransition.defaultDuration = const Duration(milliseconds: 600);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,4 +56,3 @@ class _AppState extends State<App> {
     });
   }
 }
-

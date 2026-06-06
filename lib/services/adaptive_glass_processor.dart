@@ -10,6 +10,7 @@ import 'frame_processing_models.dart';
 import 'frame_renderers/classic_frame_renderer.dart';
 import 'frame_renderers/color_border_frame_renderer.dart';
 import 'frame_renderers/color_walk_frame_renderer.dart';
+import 'frame_renderers/renderer_utils.dart';
 
 class AdaptiveGlassProcessor {
   AdaptiveGlassProcessor({
@@ -249,10 +250,4 @@ IfdTag? _findTag(Map<String, IfdTag> tags, List<String> keys) {
 String _trimDecimal(double value) {
   final raw = value.toStringAsFixed(1);
   return raw.endsWith('.0') ? raw.substring(0, raw.length - 2) : raw;
-}
-
-Future<ui.Image> decodeUiImage(Uint8List bytes) async {
-  final codec = await ui.instantiateImageCodec(bytes);
-  final frame = await codec.getNextFrame();
-  return frame.image;
 }

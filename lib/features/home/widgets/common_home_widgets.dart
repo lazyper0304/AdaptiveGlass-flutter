@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
-Color homeAccentColor(BuildContext context) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  return isDark ? const Color(0xFFC7FF12) : const Color(0xFF238E54);
-}
+import '../../../shared/app_theme.dart';
 
 class PageTitleRow extends StatelessWidget {
   const PageTitleRow({super.key, required this.title, required this.subtitle});
@@ -88,7 +85,7 @@ class ThemeModeSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final accent = homeAccentColor(context);
+    final accent = context.accentColor;
     const options = [
       (
         mode: ThemeMode.system,
@@ -215,7 +212,7 @@ class ProfileAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final accent = homeAccentColor(context);
+    final accent = context.accentColor;
 
     return InkWell(
       onTap: onTap,

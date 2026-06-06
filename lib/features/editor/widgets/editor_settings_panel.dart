@@ -5,9 +5,10 @@ import '../../../models/color_walk_settings.dart';
 import '../../../models/frame_template.dart';
 import '../../../models/processing_settings.dart';
 import '../../../services/frame_processing_models.dart';
+import '../../../shared/app_theme.dart';
 import '../models/export_format_option.dart';
 import 'classic_info_border_section.dart';
-import 'tappable_switch_row.dart';
+import 'editor_settings_widgets.dart';
 
 enum _ClassicSettingsCategory {
   canvas('画布'),
@@ -93,6 +94,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         _ClassicSettingsCategory.canvas,
         _ClassicSettingsCategory.frame,
         _ClassicSettingsCategory.infoBorder,
+        _ClassicSettingsCategory.watermark,
         _ClassicSettingsCategory.export,
       ],
       FrameTemplate.colorBorder => const [_ClassicSettingsCategory.export],
@@ -107,7 +109,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         : categories.first;
 
     return [
-      const _SectionTitle(text: '参数分类'),
+      const SectionTitle(text: '参数分类'),
       SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
@@ -119,12 +121,10 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
                   child: GlassChip(
                     label: item.label,
                     selected: activeCategory == item,
-                    selectedColor: _editorAccentColor(
-                      context,
-                    ).withValues(alpha: 0.22),
+                    selectedColor: context.accentColor.withValues(alpha: 0.22),
                     labelStyle: TextStyle(
                       color: activeCategory == item
-                          ? _editorAccentColor(context)
+                          ? context.accentColor
                           : Theme.of(
                               context,
                             ).colorScheme.onSurface.withValues(alpha: 0.82),
@@ -162,15 +162,15 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
 
     return switch (category) {
       _ClassicSettingsCategory.canvas => [
-        const _SectionTitle(text: '画布比例'),
-        _EnumRow<RatioPreset>(
+        const SectionTitle(text: '画布比例'),
+        SettingsEnumRow<RatioPreset>(
           value: settings.targetRatio,
           values: RatioPreset.values,
           labelBuilder: (item) => item.label,
           onChanged: (value) =>
               widget.onSettingsChanged(settings.copyWith(targetRatio: value)),
         ),
-        _SliderRow(
+        SettingsSliderRow(
           label: '内容缩放 ${settings.contentScale}%',
           value: settings.contentScale.toDouble(),
           min: 50,
@@ -181,8 +181,8 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         ),
       ],
       _ClassicSettingsCategory.background => [
-        const _SectionTitle(text: '背景'),
-        _SliderRow(
+        const SectionTitle(text: '背景'),
+        SettingsSliderRow(
           label: '模糊半径 ${settings.blurRadius}',
           value: settings.blurRadius.toDouble(),
           min: 0,
@@ -191,7 +191,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             settings.copyWith(blurRadius: value.round()),
           ),
         ),
-        _SliderRow(
+        SettingsSliderRow(
           label: '背景亮度 ${settings.blurBrightness}',
           value: settings.blurBrightness.toDouble(),
           min: -100,
@@ -200,7 +200,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             settings.copyWith(blurBrightness: value.round()),
           ),
         ),
-        _EnumRow<BlurModeOption>(
+        SettingsEnumRow<BlurModeOption>(
           value: settings.blurMode,
           values: BlurModeOption.values,
           labelBuilder: (item) => item.label,
@@ -209,15 +209,15 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         ),
       ],
       _ClassicSettingsCategory.frame => [
-        const _SectionTitle(text: '边框'),
-        _EnumRow<BorderStyleOption>(
+        const SectionTitle(text: '边框'),
+        SettingsEnumRow<BorderStyleOption>(
           value: settings.borderStyle,
           values: BorderStyleOption.values,
           labelBuilder: (item) => item.label,
           onChanged: (value) =>
               widget.onSettingsChanged(settings.copyWith(borderStyle: value)),
         ),
-        _SliderRow(
+        SettingsSliderRow(
           label: '边框宽度 ${settings.borderWidth}',
           value: settings.borderWidth.toDouble(),
           min: 0,
@@ -226,7 +226,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             settings.copyWith(borderWidth: value.round()),
           ),
         ),
-        _SliderRow(
+        SettingsSliderRow(
           label: '圆角半径 ${settings.cornerRadius}',
           value: settings.cornerRadius.toDouble(),
           min: 0,
@@ -235,7 +235,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             settings.copyWith(cornerRadius: value.round()),
           ),
         ),
-        _SliderRow(
+        SettingsSliderRow(
           label: '阴影强度 ${settings.shadowSize}',
           value: settings.shadowSize.toDouble(),
           min: 0,
@@ -244,7 +244,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             settings.copyWith(shadowSize: value.round()),
           ),
         ),
-        _EnumRow<MonoColor>(
+        SettingsEnumRow<MonoColor>(
           value: settings.borderColor,
           values: MonoColor.values,
           labelBuilder: (item) => item.label,
@@ -253,7 +253,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         ),
       ],
       _ClassicSettingsCategory.infoBorder => [
-        const _SectionTitle(text: '底部信息边框'),
+        const SectionTitle(text: '底部信息边框'),
         ClassicInfoBorderSection(
           settings: settings.classicInfoBorder,
           onChanged: (value) => widget.onSettingsChanged(
@@ -262,8 +262,8 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         ),
       ],
       _ClassicSettingsCategory.watermark => [
-        const _SectionTitle(text: '文字水印'),
-        _SwitchRow(
+        const SectionTitle(text: '文字水印'),
+        SettingsSwitchRow(
           label: '启用水印',
           value: settings.watermark.enabled,
           onChanged: (value) => widget.onSettingsChanged(
@@ -280,7 +280,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
           quality: GlassQuality.standard,
         ),
         const SizedBox(height: 12),
-        _EnumRow<WatermarkModeOption>(
+        SettingsEnumRow<WatermarkModeOption>(
           value: settings.watermark.textMode,
           values: WatermarkModeOption.values,
           labelBuilder: (item) => item.label,
@@ -290,7 +290,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             ),
           ),
         ),
-        _EnumRow<WatermarkPosition>(
+        SettingsEnumRow<WatermarkPosition>(
           value: settings.watermark.position,
           values: WatermarkPosition.values,
           labelBuilder: (item) => item.label,
@@ -301,7 +301,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
           ),
         ),
         if (settings.watermark.position == WatermarkPosition.manual) ...[
-          _SliderRow(
+          SettingsSliderRow(
             label: '水平偏移 ${settings.watermark.customX}',
             value: settings.watermark.customX.toDouble(),
             min: -500,
@@ -312,7 +312,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
               ),
             ),
           ),
-          _SliderRow(
+          SettingsSliderRow(
             label: '垂直偏移 ${settings.watermark.customY}',
             value: settings.watermark.customY.toDouble(),
             min: -500,
@@ -324,7 +324,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             ),
           ),
         ],
-        _EnumRow<MonoColor>(
+        SettingsEnumRow<MonoColor>(
           value: settings.watermark.textColor,
           values: MonoColor.values,
           labelBuilder: (item) => item.label,
@@ -334,7 +334,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             ),
           ),
         ),
-        _EnumRow<WatermarkFontFamily>(
+        SettingsEnumRow<WatermarkFontFamily>(
           value: settings.watermark.fontFamily,
           values: WatermarkFontFamily.values,
           labelBuilder: (item) => item.label,
@@ -344,7 +344,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             ),
           ),
         ),
-        _SliderRow(
+        SettingsSliderRow(
           label: '透明度 ${settings.watermark.opacity}',
           value: settings.watermark.opacity.toDouble(),
           min: 0,
@@ -355,7 +355,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             ),
           ),
         ),
-        _SliderRow(
+        SettingsSliderRow(
           label: '字体缩放 ${(settings.watermark.sizeScale * 100).round()}%',
           value: settings.watermark.sizeScale * 100,
           min: 25,
@@ -368,8 +368,8 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         ),
       ],
       _ClassicSettingsCategory.export => [
-        const _SectionTitle(text: '导出'),
-        _EnumRow<ExportFormatOption>(
+        const SectionTitle(text: '导出'),
+        SettingsEnumRow<ExportFormatOption>(
           value: widget.exportFormat,
           values: ExportFormatOption.values,
           labelBuilder: (item) => item.label,
@@ -383,7 +383,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
     final colors = Theme.of(context).colorScheme;
 
     return [
-      const _SectionTitle(text: '模式说明'),
+      const SectionTitle(text: '模式说明'),
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -400,8 +400,8 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
           ),
         ),
       ),
-      const _SectionTitle(text: '导出'),
-      _EnumRow<ExportFormatOption>(
+      const SectionTitle(text: '导出'),
+      SettingsEnumRow<ExportFormatOption>(
         value: widget.exportFormat,
         values: ExportFormatOption.values,
         labelBuilder: (item) => item.label,
@@ -416,7 +416,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
     final palette = widget.palette;
 
     return [
-      const _SectionTitle(text: '模式说明'),
+      const SectionTitle(text: '模式说明'),
       Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -433,7 +433,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
           ),
         ),
       ),
-      const _SectionTitle(text: '选择背景色'),
+      const SectionTitle(text: '选择背景色'),
       if (palette.isEmpty)
         Container(
           padding: const EdgeInsets.all(12),
@@ -457,7 +457,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
               .asMap()
               .entries
               .map(
-                (entry) => _ColorSelector(
+                (entry) => ColorSelector(
                   color: entry.value.toColor(),
                   selected: settings.selectedColorIndex == entry.key,
                   onTap: () => widget.onSettingsChanged(
@@ -470,8 +470,8 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
               .toList(),
         ),
       const SizedBox(height: 8),
-      const _SectionTitle(text: '排布位置'),
-      _EnumRow<ColorWalkPosition>(
+      const SectionTitle(text: '排布位置'),
+      SettingsEnumRow<ColorWalkPosition>(
         value: settings.position,
         values: ColorWalkPosition.values,
         labelBuilder: (item) => item.label,
@@ -481,8 +481,8 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
           ),
         ),
       ),
-      const _SectionTitle(text: '自定义文字'),
-      _ColorWalkTextField(
+      const SectionTitle(text: '自定义文字'),
+      ColorWalkTextField(
         initialText: settings.customText,
         onChanged: (value) => widget.onSettingsChanged(
           widget.settings.copyWith(
@@ -491,7 +491,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         ),
       ),
       const SizedBox(height: 8),
-      _SliderRow(
+      SettingsSliderRow(
         label: '文字大小 ${settings.customTextSize}px',
         value: settings.customTextSize.toDouble(),
         min: 12,
@@ -503,7 +503,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         ),
       ),
       const SizedBox(height: 12),
-      _SwitchRow(
+      SettingsSwitchRow(
         label: '显示拍摄时间',
         value: settings.showDateTime,
         onChanged: (value) => widget.onSettingsChanged(
@@ -513,7 +513,7 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
         ),
       ),
       if (settings.showDateTime)
-        _SliderRow(
+        SettingsSliderRow(
           label: '时间文字大小 ${settings.dateTimeTextSize}px',
           value: settings.dateTimeTextSize.toDouble(),
           min: 10,
@@ -524,8 +524,8 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
             ),
           ),
         ),
-      const _SectionTitle(text: '导出'),
-      _EnumRow<ExportFormatOption>(
+      const SectionTitle(text: '导出'),
+      SettingsEnumRow<ExportFormatOption>(
         value: widget.exportFormat,
         values: ExportFormatOption.values,
         labelBuilder: (item) => item.label,
@@ -533,254 +533,4 @@ class _EditorSettingsPanelState extends State<EditorSettingsPanel> {
       ),
     ];
   }
-}
-
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 18, bottom: 10),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: colors.onSurface,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0,
-        ),
-      ),
-    );
-  }
-}
-
-class _SliderRow extends StatelessWidget {
-  const _SliderRow({
-    required this.label,
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.onChanged,
-  });
-
-  final String label;
-  final double value;
-  final double min;
-  final double max;
-  final ValueChanged<double> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final accent = _editorAccentColor(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(color: colors.onSurface.withValues(alpha: 0.82)),
-        ),
-        const SizedBox(height: 4),
-        GlassSlider(
-          value: value,
-          min: min,
-          max: max,
-          onChanged: onChanged,
-          activeColor: accent,
-          inactiveColor: colors.onSurface.withValues(alpha: 0.16),
-          thumbColor: colors.surface,
-          quality: GlassQuality.standard,
-        ),
-      ],
-    );
-  }
-}
-
-class _SwitchRow extends StatelessWidget {
-  const _SwitchRow({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String label;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = _editorAccentColor(context);
-
-    return TappableSwitchRow(
-      label: label,
-      value: value,
-      onChanged: onChanged,
-      activeColor: accent,
-    );
-  }
-}
-
-class _EnumRow<T extends Enum> extends StatelessWidget {
-  const _EnumRow({
-    required this.value,
-    required this.values,
-    required this.labelBuilder,
-    required this.onChanged,
-  });
-
-  final T value;
-  final List<T> values;
-  final String Function(T item) labelBuilder;
-  final ValueChanged<T> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final accent = _editorAccentColor(context);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: values
-            .map(
-              (item) => GlassChip(
-                label: labelBuilder(item),
-                selected: value == item,
-                selectedColor: accent.withValues(alpha: 0.22),
-                labelStyle: TextStyle(
-                  color: value == item
-                      ? accent
-                      : colors.onSurface.withValues(alpha: 0.82),
-                  fontWeight: value == item ? FontWeight.w800 : FontWeight.w600,
-                ),
-                onTap: () => onChanged(item),
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-}
-
-class _ColorWalkTextField extends StatefulWidget {
-  const _ColorWalkTextField({
-    required this.initialText,
-    required this.onChanged,
-  });
-
-  final String initialText;
-  final ValueChanged<String> onChanged;
-
-  @override
-  State<_ColorWalkTextField> createState() => _ColorWalkTextFieldState();
-}
-
-class _ColorWalkTextFieldState extends State<_ColorWalkTextField> {
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialText);
-    _controller.addListener(_handleChange);
-  }
-
-  @override
-  void didUpdateWidget(covariant _ColorWalkTextField oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialText != widget.initialText) {
-      _controller.text = widget.initialText;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.removeListener(_handleChange);
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _handleChange() {
-    widget.onChanged(_controller.text);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GlassTextField(
-      controller: _controller,
-      placeholder: '输入自定义文字',
-      prefixIcon: const Icon(Icons.text_fields_rounded, size: 20),
-      quality: GlassQuality.standard,
-    );
-  }
-}
-
-class _ColorSelector extends StatelessWidget {
-  const _ColorSelector({
-    required this.color,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final Color color;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black12,
-              blurRadius: 4,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: selected
-                  ? Border.all(
-                      color: _editorAccentColor(context),
-                      width: 3,
-                    )
-                  : null,
-            ),
-            child: selected
-                ? Icon(
-                    Icons.check,
-                    color: Colors.white,
-                    size: 20,
-                  )
-                : null,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-Color _editorAccentColor(BuildContext context) {
-  final isDark = Theme.of(context).brightness == Brightness.dark;
-  return isDark ? const Color(0xFFC7FF12) : const Color(0xFF238E54);
 }
