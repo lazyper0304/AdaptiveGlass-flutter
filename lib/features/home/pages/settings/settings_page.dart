@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+import 'package:signals_flutter/signals_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../services/update_checker_service.dart';
 import '../../../../shared/app_theme.dart';
+import '../../../../shared/theme_controller.dart';
 import '../../widgets/common_home_widgets.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -221,6 +224,15 @@ class _SettingsPageState extends State<SettingsPage> {
                   themeMode: widget.themeModeValue,
                   onChanged: widget.onThemeModeChanged,
                 ),
+                const SizedBox(height: 20),
+                Text(
+                  '字体',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: colors.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _FontSelector(),
               ],
             ),
           ),
@@ -406,5 +418,87 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
+  }
+}
+
+class _FontSelector extends StatelessWidget {
+  const _FontSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final accent = context.accentColor;
+    const options = [
+      (family: 'SmileySans', label: '得意黑'),
+      (family: '', label: '系统字体'),
+    ];
+
+    return Watch((context) {
+      return SizedBox(
+        height: 44,
+        child: GlassPanel(
+        padding: const EdgeInsets.all(3),
+        shape: const LiquidRoundedSuperellipse(borderRadius: 22),
+        quality: GlassQuality.standard,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: options.map((option) {
+            final isSelected = fontFamily.value == option.family;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1),
+                child: InkWell(
+                  onTap: () => updateFontFamily(option.family),
+                  borderRadius: BorderRadius.circular(18),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeOutCubic,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      color: isSelected
+                          ? accent.withValues(alpha: 0.24)
+                          : Colors.transparent,
+                      border: isSelected
+                          ? Border.all(color: accent.withValues(alpha: 0.72))
+                          : null,
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: accent.withValues(alpha: 0.16),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: AnimatedDefaultTextStyle(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutCubic,
+                      style: TextStyle(
+                        fontFamily: option.family.isEmpty ? null : option.family,
+                        color: isSelected
+                            ? accent
+                            : colors.onSurface.withValues(alpha: 0.72),
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        fontSize: isSelected ? 14 : 12,
+                      ),
+                      child: Text(
+                        option.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+      );
+    });
   }
 }

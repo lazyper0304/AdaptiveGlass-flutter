@@ -96,7 +96,6 @@ class _ChangelogPageState extends State<ChangelogPage> {
                 Text(
                   '\u66f4\u65b0\u65e5\u5fd7',
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontFamily: 'SmileySans',
                     color: colors.onSurface,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 0,

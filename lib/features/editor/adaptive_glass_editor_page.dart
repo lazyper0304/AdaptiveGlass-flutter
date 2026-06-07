@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
@@ -131,43 +130,6 @@ class _AdaptiveGlassEditorPageState extends State<AdaptiveGlassEditorPage> {
     _controller.completeExport(cancelled: target == null);
   }
 
-  Future<void> _savePreset() async {
-    final target = await FilePicker.saveFile(
-      dialogTitle: '保存预设',
-      fileName: 'adaptive_glass.agp',
-      allowedExtensions: const ['agp'],
-      bytes: _controller.buildPresetBytes(),
-    );
-    if (!mounted) {
-      return;
-    }
-
-    _controller.setStatus(target == null ? '已取消保存' : '预设已保存');
-  }
-
-  Future<void> _loadPreset() async {
-    final previewMaxDimension = _previewMaxDimension(context);
-    final result = await FilePicker.pickFiles(
-      dialogTitle: '加载预设',
-      type: FileType.custom,
-      allowedExtensions: const ['agp'],
-      withData: true,
-    );
-    final file = result?.files.firstOrNull;
-    final bytes = file?.bytes;
-    if (bytes == null) {
-      return;
-    }
-    if (!mounted) {
-      return;
-    }
-
-    await _controller.applyPresetString(
-      utf8.decode(bytes),
-      previewMaxDimension: previewMaxDimension,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -228,16 +190,6 @@ class _AdaptiveGlassEditorPageState extends State<AdaptiveGlassEditorPage> {
                         onTap: _exportImage,
                         enabled: _controller.hasSource,
                       ),
-                      _EditorToolbarButton(
-                        tooltip: '保存预设',
-                        icon: Icons.bookmark_add_rounded,
-                        onTap: _savePreset,
-                      ),
-                      _EditorToolbarButton(
-                        tooltip: '加载预设',
-                        icon: Icons.folder_open_rounded,
-                        onTap: _loadPreset,
-                      ),
                     ],
                   ),
                 ),
@@ -286,14 +238,20 @@ class _AdaptiveGlassEditorPageState extends State<AdaptiveGlassEditorPage> {
                     );
                   }
 
-                  return ListView(
-                    physics: const BouncingScrollPhysics(),
+                  return Padding(
                     padding: const EdgeInsets.fromLTRB(20, 100, 20, 104),
-                    children: [
-                      SizedBox(height: 420, child: preview),
-                      const SizedBox(height: 18),
-                      panel,
-                    ],
+                    child: Column(
+                      children: [
+                        SizedBox(height: 420, child: preview),
+                        const SizedBox(height: 18),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(),
+                            child: panel,
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),

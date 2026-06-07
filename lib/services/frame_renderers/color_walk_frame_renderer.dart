@@ -145,7 +145,6 @@ class ColorWalkFrameRenderer {
       image,
       metrics,
       selectedColor,
-      palette,
       colorWalkSettings,
       exif,
       canvasSize: Size(
@@ -287,7 +286,6 @@ Future<Map<String, Object?>> _processRasterTask(
     canvas: layers.background.clone(),
     foreground: layers.foreground,
     layoutInfo: layers.layoutInfo,
-    palette: layers.palette,
     colorWalkSettings: settings.colorWalk,
     exif: const ExifSnapshot(),
   );
@@ -316,7 +314,6 @@ Future<Map<String, Object?>> _processPreviewCompositeRasterTask(
     canvas: layers.background.clone(),
     foreground: layers.foreground,
     layoutInfo: layers.layoutInfo,
-    palette: layers.palette,
     colorWalkSettings: settings.colorWalk,
     exif: const ExifSnapshot(),
   );
@@ -429,7 +426,6 @@ img.Image _composeColorWalkImage({
   required img.Image canvas,
   required img.Image foreground,
   required LayoutInfo layoutInfo,
-  required List<PaletteSwatch> palette,
   required ColorWalkSettings colorWalkSettings,
   required ExifSnapshot exif,
 }) {
@@ -443,7 +439,6 @@ img.Image _composeColorWalkImage({
   final paletteAreaSize = (canvas.width * 0.45).round();
   _paintColorWalkPaletteArea(
     canvas,
-    palette,
     colorWalkSettings,
     exif,
     paletteAreaSize,
@@ -454,14 +449,10 @@ img.Image _composeColorWalkImage({
 
 void _paintColorWalkPaletteArea(
   img.Image canvas,
-  List<PaletteSwatch> palette,
   ColorWalkSettings settings,
   ExifSnapshot exif,
   int paletteAreaSize,
 ) {
-  final isVertical = settings.position == ColorWalkPosition.left ||
-      settings.position == ColorWalkPosition.right;
-
   int areaX, areaY, areaWidth, areaHeight;
 
   switch (settings.position) {
@@ -491,75 +482,48 @@ void _paintColorWalkPaletteArea(
       break;
   }
 
-  final circleRadius = math.max(12, math.min(24, paletteAreaSize ~/ 8));
-  final circleSize = circleRadius * 2;
+  // 计算总文字高度，实现与预览一致的垂直居中
+  final customFont = settings.customTextSize >= 20 ? img.arial24 : img.arial14;
+  final dateFont = img.arial14;
+  final labelColor = img.ColorRgba8(255, 255, 255, 200);
 
-  final paletteCount = palette.length;
-  final spacing = (isVertical ? areaHeight : areaWidth - circleSize * paletteCount) ~/ (paletteCount + 1);
+  final customFontHeight = settings.customTextSize >= 20 ? 24 : 14;
+  const dateFontHeight = 14;
 
-  for (var i = 0; i < paletteCount; i++) {
-    int circleX, circleY;
-    if (isVertical) {
-      circleX = areaX + (areaWidth - circleSize) ~/ 2;
-      circleY = areaY + spacing + i * (circleSize + spacing);
-    } else {
-      circleX = areaX + spacing + i * (circleSize + spacing);
-      circleY = areaY + (areaHeight - circleSize) ~/ 2;
-    }
-
-    img.fillCircle(
-      canvas,
-      x: circleX + circleRadius,
-      y: circleY + circleRadius,
-      radius: circleRadius + 4,
-      color: img.ColorRgba8(255, 255, 255, 255),
-    );
-
-    final color = palette[i];
-    img.fillCircle(
-      canvas,
-      x: circleX + circleRadius,
-      y: circleY + circleRadius,
-      radius: circleRadius,
-      color: img.ColorRgba8(color.red, color.green, color.blue, 255),
-    );
-
-    if (i == settings.selectedColorIndex) {
-      img.drawCircle(
-        canvas,
-        x: circleX + circleRadius,
-        y: circleY + circleRadius,
-        radius: circleRadius + 8,
-        color: img.ColorRgba8(255, 255, 255, 255),
-      );
-    }
+  double totalTextHeight = 0;
+  if (settings.customText.isNotEmpty) {
+    totalTextHeight += customFontHeight;
+  }
+  if (settings.showDateTime && exif.dateTimeOriginal.isNotEmpty) {
+    if (totalTextHeight > 0) totalTextHeight += 4;
+    totalTextHeight += dateFontHeight;
   }
 
+  final centerY = areaY + areaHeight ~/ 2;
+  final startY = centerY - totalTextHeight ~/ 2;
   final textX = areaX + (areaWidth ~/ 2);
-  final textY = areaY + (areaHeight ~/ 2) - settings.customTextSize ~/ 2;
-  final labelFont = settings.customTextSize >= 20 ? img.arial24 : img.arial14;
-  final labelColor = img.ColorRgba8(255, 255, 255, 200);
+  int currentY = startY;
 
   if (settings.customText.isNotEmpty) {
     img.drawString(
       canvas,
       settings.customText,
       x: textX,
-      y: textY,
-      font: labelFont,
+      y: currentY,
+      font: customFont,
       color: labelColor,
     );
+    currentY += customFontHeight + 4;
   }
 
   if (settings.showDateTime && exif.dateTimeOriginal.isNotEmpty) {
     final dateText = exif.dateTimeOriginal.split(' ').first;
-    final timeY = textY + settings.customTextSize + 4;
     img.drawString(
       canvas,
       dateText,
       x: textX,
-      y: timeY,
-      font: img.arial14,
+      y: currentY,
+      font: dateFont,
       color: labelColor,
     );
   }
@@ -570,7 +534,6 @@ void _paintColorWalkExport(
   ui.Image image,
   ColorWalkLayoutMetrics metrics,
   PaletteSwatch selectedColor,
-  List<PaletteSwatch> palette,
   ColorWalkSettings colorWalkSettings,
   ExifSnapshot exif, {
   required Size canvasSize,
@@ -598,7 +561,6 @@ void _paintColorWalkExport(
   _paintPaletteArea(
     canvas,
     metrics,
-    palette,
     colorWalkSettings,
     exif,
   );
@@ -607,61 +569,55 @@ void _paintColorWalkExport(
 void _paintPaletteArea(
   Canvas canvas,
   ColorWalkLayoutMetrics metrics,
-  List<PaletteSwatch> palette,
   ColorWalkSettings settings,
   ExifSnapshot exif,
 ) {
-  final isVertical = settings.position == ColorWalkPosition.left ||
-      settings.position == ColorWalkPosition.right;
-
   final paletteAreaWidth = metrics.paletteAreaWidth;
   final paletteAreaHeight = metrics.paletteAreaHeight;
   final paletteAreaOffset = metrics.paletteAreaOffset;
 
-  final circleRadius = math.max(12.0, math.min(24.0, (isVertical ? paletteAreaWidth : paletteAreaHeight) / 8));
-  final circleSize = circleRadius * 2;
+  final textX = paletteAreaOffset.dx + paletteAreaWidth / 2;
 
-  final paletteCount = palette.length;
-  final spacing = (isVertical ? paletteAreaHeight : paletteAreaWidth - circleSize * paletteCount) / (paletteCount + 1);
+  // 计算总文字高度，实现与预览一致的垂直居中
+  double totalTextHeight = 0;
+  double? customTextHeight;
+  double? dateTextHeight;
 
-  for (var i = 0; i < paletteCount; i++) {
-    double circleX, circleY;
-    if (isVertical) {
-      circleX = paletteAreaOffset.dx + (paletteAreaWidth - circleSize) / 2;
-      circleY = paletteAreaOffset.dy + spacing + i * (circleSize + spacing);
-    } else {
-      circleX = paletteAreaOffset.dx + spacing + i * (circleSize + spacing);
-      circleY = paletteAreaOffset.dy + (paletteAreaHeight - circleSize) / 2;
-    }
-
-    final center = Offset(circleX + circleRadius, circleY + circleRadius);
-
-    canvas.drawCircle(
-      center,
-      circleRadius + 4,
-      Paint()..color = Colors.white,
-    );
-
-    canvas.drawCircle(
-      center,
-      circleRadius,
-      Paint()..color = palette[i].toColor(),
-    );
-
-    if (i == settings.selectedColorIndex) {
-      canvas.drawCircle(
-        center,
-        circleRadius + 8,
-        Paint()
-          ..color = Colors.white
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3,
-      );
-    }
+  if (settings.customText.isNotEmpty) {
+    final customPainter = TextPainter(
+      textAlign: TextAlign.center,
+      text: TextSpan(
+        text: settings.customText,
+        style: TextStyle(
+          fontSize: settings.customTextSize.toDouble(),
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    customTextHeight = customPainter.height;
+    totalTextHeight += customTextHeight;
   }
 
-  final textX = paletteAreaOffset.dx + paletteAreaWidth / 2;
-  final textY = paletteAreaOffset.dy + paletteAreaHeight / 2 - settings.customTextSize / 2;
+  if (settings.showDateTime && exif.dateTimeOriginal.isNotEmpty) {
+    final datePainter = TextPainter(
+      textAlign: TextAlign.center,
+      text: TextSpan(
+        text: exif.dateTimeOriginal.split(' ').first,
+        style: TextStyle(
+          fontSize: settings.dateTimeTextSize.toDouble(),
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    dateTextHeight = datePainter.height;
+    if (totalTextHeight > 0) totalTextHeight += 4;
+    totalTextHeight += dateTextHeight;
+  }
+
+  final startY = paletteAreaOffset.dy + (paletteAreaHeight - totalTextHeight) / 2;
+  double currentY = startY;
 
   if (settings.customText.isNotEmpty) {
     final textPainter = TextPainter(
@@ -679,13 +635,13 @@ void _paintPaletteArea(
 
     textPainter.paint(
       canvas,
-      Offset(textX - textPainter.width / 2, textY),
+      Offset(textX - textPainter.width / 2, currentY),
     );
+    currentY += customTextHeight! + 4;
   }
 
   if (settings.showDateTime && exif.dateTimeOriginal.isNotEmpty) {
     final dateText = exif.dateTimeOriginal.split(' ').first;
-    final dateY = textY + settings.customTextSize + 4;
 
     final datePainter = TextPainter(
       textAlign: TextAlign.center,
@@ -702,7 +658,7 @@ void _paintPaletteArea(
 
     datePainter.paint(
       canvas,
-      Offset(textX - datePainter.width / 2, dateY),
+      Offset(textX - datePainter.width / 2, currentY),
     );
   }
 }

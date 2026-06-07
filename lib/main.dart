@@ -39,12 +39,13 @@ class App extends StatelessWidget {
     );
 
     return Watch((context) {
+      final currentFont = fontFamily.value;
       return MaterialApp.router(
         debugShowCheckedModeBanner: false,
         title: 'AdaptiveGlass',
         themeMode: themeMode.value,
-        theme: _buildTheme(lightScheme),
-        darkTheme: _buildTheme(darkScheme),
+        theme: _buildAppTheme(lightScheme, currentFont),
+        darkTheme: _buildAppTheme(darkScheme, currentFont),
         routerConfig: appRouter,
         builder: (context, child) {
           return GlassTheme(
@@ -55,4 +56,24 @@ class App extends StatelessWidget {
       );
     });
   }
+}
+
+ThemeData _buildAppTheme(ColorScheme scheme, String fontFamily) {
+  final isDark = scheme.brightness == Brightness.dark;
+
+  return ThemeData(
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: GoTransitions.cupertino,
+        TargetPlatform.iOS: GoTransitions.cupertino,
+        TargetPlatform.macOS: GoTransitions.cupertino,
+      },
+    ),
+    colorScheme: scheme,
+    scaffoldBackgroundColor: isDark
+        ? const Color(0xFF0E1116)
+        : const Color(0xFFF4F7F5),
+    fontFamily: fontFamily.isEmpty ? null : fontFamily,
+    useMaterial3: true,
+  );
 }

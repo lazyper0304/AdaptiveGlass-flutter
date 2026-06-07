@@ -61,7 +61,6 @@ class TemplateCard extends StatelessWidget {
                 child: Text(
                   template.name,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontFamily: 'SmileySans',
                         color: colors.onSurface.withValues(alpha: 0.92),
                         fontSize: 22,
                         fontWeight: FontWeight.w700,

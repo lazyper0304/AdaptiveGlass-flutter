@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
-import 'package:signals_flutter/signals_flutter.dart';
 
-import 'home_screen.dart';
+import '../../../../shared/app_theme.dart';
+import '../../../../shared/theme_controller.dart';
+import 'home_shell.dart';
 
 class SettingsShell extends StatelessWidget {
   const SettingsShell({super.key});
@@ -43,10 +44,15 @@ class SettingsPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text(
-                      '主题模式',
+                      '外观',
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
+                    const Text(
+                      '主题模式',
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -65,6 +71,30 @@ class SettingsPage extends StatelessWidget {
                           label: '深色',
                           mode: ThemeMode.dark,
                           selected: themeMode.value == ThemeMode.dark,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Divider(height: 1),
+                    const SizedBox(height: 16),
+                    const Text(
+                      '字体',
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _FontChip(
+                          label: '得意黑',
+                          family: 'SmileySans',
+                          selected: fontFamily.value == 'SmileySans',
+                        ),
+                        _FontChip(
+                          label: '系统字体',
+                          family: '',
+                          selected: fontFamily.value == '',
                         ),
                       ],
                     ),
@@ -95,8 +125,7 @@ class _ThemeModeChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? accentColorDark : accentColorLight;
+    final accent = context.accentColor;
 
     return GlassChip(
       label: label,
@@ -108,6 +137,36 @@ class _ThemeModeChip extends StatelessWidget {
         fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
       ),
       onTap: () => updateThemeMode(mode),
+    );
+  }
+}
+
+class _FontChip extends StatelessWidget {
+  const _FontChip({
+    required this.label,
+    required this.family,
+    required this.selected,
+  });
+
+  final String label;
+  final String family;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = context.accentColor;
+
+    return GlassChip(
+      label: label,
+      selected: selected,
+      selectedColor: accent.withValues(alpha: 0.22),
+      labelStyle: TextStyle(
+        fontFamily: family.isEmpty ? null : family,
+        color: selected ? accent
+            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.82),
+        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+      ),
+      onTap: () => updateFontFamily(family),
     );
   }
 }

@@ -22,7 +22,6 @@ class PageTitleRow extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontFamily: 'SmileySans',
                   color: colors.onSurface,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0,
