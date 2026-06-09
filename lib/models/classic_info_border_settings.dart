@@ -16,7 +16,26 @@ extension ClassicInfoSourceX on ClassicInfoSource {
   }
 }
 
-enum CameraLogoOption { auto, none, canon, sony, nikon, leica, hasselblad, dji }
+enum CameraLogoOption {
+  auto,
+  none,
+  canon,
+  sony,
+  nikon,
+  leica,
+  hasselblad,
+  dji,
+  oppo,
+  Huawei,
+  VIVO,
+  Honor,
+  OnePlus,
+  Xiaomi,
+  Realme,
+  samsung,
+  apple,
+  Redmi,
+}
 
 extension CameraLogoOptionX on CameraLogoOption {
   String get storageValue => name;
@@ -30,6 +49,16 @@ extension CameraLogoOptionX on CameraLogoOption {
     CameraLogoOption.leica => 'Leica',
     CameraLogoOption.hasselblad => 'Hasselblad',
     CameraLogoOption.dji => 'DJI',
+    CameraLogoOption.oppo => 'OPPO',
+    CameraLogoOption.Huawei => 'Huawei',
+    CameraLogoOption.VIVO => 'VIVO',
+    CameraLogoOption.Honor => 'Honor',
+    CameraLogoOption.OnePlus => 'OnePlus',
+    CameraLogoOption.Xiaomi => 'Xiaomi',
+    CameraLogoOption.Realme => 'Realme',
+    CameraLogoOption.samsung => 'samsung',
+    CameraLogoOption.apple => 'apple',
+    CameraLogoOption.Redmi => 'Redmi',
   };
 
   String? get assetPath => switch (this) {
@@ -40,6 +69,16 @@ extension CameraLogoOptionX on CameraLogoOption {
     CameraLogoOption.leica => 'lib/CameraLogos/Leica.svg',
     CameraLogoOption.hasselblad => 'lib/CameraLogos/hasselblad.svg',
     CameraLogoOption.dji => 'lib/CameraLogos/DJI.svg',
+    CameraLogoOption.oppo => 'lib/CameraLogos/OPPO.svg',
+    CameraLogoOption.Huawei => 'lib/CameraLogos/Huawei.svg',
+    CameraLogoOption.VIVO => 'lib/CameraLogos/VIVO.svg',
+    CameraLogoOption.Honor => 'lib/CameraLogos/Honor.svg',
+    CameraLogoOption.OnePlus => 'lib/CameraLogos/OnePlus.svg',
+    CameraLogoOption.Xiaomi => 'lib/CameraLogos/Xiaomi.svg',
+    CameraLogoOption.Realme => 'lib/CameraLogos/Realme.svg',
+    CameraLogoOption.samsung => 'lib/CameraLogos/samsung.svg',
+    CameraLogoOption.apple => 'lib/CameraLogos/apple.svg',
+    CameraLogoOption.Redmi => 'lib/CameraLogos/Redmi.svg'
   };
 
   static CameraLogoOption fromStorage(String? value) {

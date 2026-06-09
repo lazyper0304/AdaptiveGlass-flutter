@@ -120,6 +120,16 @@ String? resolveClassicInfoBorderLogoAsset(
     case CameraLogoOption.leica:
     case CameraLogoOption.hasselblad:
     case CameraLogoOption.dji:
+    case CameraLogoOption.oppo:
+    case CameraLogoOption.Huawei:
+    case CameraLogoOption.VIVO:
+    case CameraLogoOption.Honor:
+    case CameraLogoOption.OnePlus:
+    case CameraLogoOption.Xiaomi:
+    case CameraLogoOption.Realme:
+    case CameraLogoOption.samsung:
+    case CameraLogoOption.apple:
+    case CameraLogoOption.Redmi:
       return settings.logo.assetPath;
   }
 }
