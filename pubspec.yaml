@@ -92,3 +92,5 @@ flutter_launcher_icons:
     generate: true
     image_path: "lib/icon/icon.png"
   image_path: "lib/icon/icon.png"
+  adaptive_icon_foreground: "lib/icon/icon.png"
+  adaptive_icon_background: "#0E1116"
